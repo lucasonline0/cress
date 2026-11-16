@@ -1,0 +1,9 @@
+import { build } from 'esbuild';
+import { build as viteBuild } from 'vite';
+import { mkdir, copyFile } from 'node:fs/promises';
+await mkdir('desktop-dist/main', { recursive: true });
+await build({ entryPoints: ['desktop/main/worker.ts'], bundle: true, platform: 'node', format: 'cjs', outfile: 'desktop-dist/main/worker.cjs', packages: 'external' });
+await copyFile('desktop/main/main.cjs', 'desktop-dist/main/main.cjs');
+await copyFile('desktop/preload/preload.cjs', 'desktop-dist/main/preload.cjs');
+await viteBuild({ root: 'desktop/renderer', base: './', build: { outDir: '../../desktop-dist/renderer', emptyOutDir: true } });
+await copyFile('assets/brand/cress-black.png', 'desktop-dist/renderer/cress-black.png');
