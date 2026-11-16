@@ -1,63 +1,120 @@
-# Cress
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/cress-white.png">
+    <img src="assets/brand/cress-black.png" alt="Cress mascot and wordmark" width="180">
+  </picture>
+</p>
 
-Cress is a local-first technical alpha that inventories NestJS route declarations and nearby authorization declarations from TypeScript source. It is not a vulnerability scanner. It parses syntax with ts-morph; it does not import or execute target-project code.
+<h1 align="center">cress.</h1>
+<p align="center"><strong>Make access understandable.</strong></p>
+<p align="center">Local-first · Open source · NestJS · Technical alpha</p>
 
-## Run locally
+Cress helps backend developers **explore declared authorization controls and review changes between revisions** without executing their applications or uploading source code.
 
-Requires Node.js 20+ and npm. In this repository:
+> **Technical alpha:** Cress inspects source-level declarations. It does **not** determine effective permissions, prove that endpoints are public, or detect vulnerabilities.
 
-```sh
-npm install
-npm run dev -- scan test/fixtures/nest-app/src
-npm run dev -- scan test/fixtures/nest-app/src --format json
-npm run dev -- diff /path/to/nest-project --base main
-npm run dev -- diff /path/to/nest-project --base main --format json
-npm run dev -- report /path/to/nest-project --base main --output ./cress-report.html
+## Why Cress?
+
+Authorization logic is easy to scatter across guards, roles, decorators and application configuration. Cress offers a readable, traceable view of what is declared in a NestJS project and what changed.
+
+- **Explore routes:** list recognized HTTP handlers, controller paths, guards, roles and other observed decorators.
+- **Trace evidence:** findings point to their original files and source lines.
+- **Compare revisions:** inspect added, removed and modified route/access declarations between a local Git baseline and the working tree.
+- **Review visually:** generate a standalone, offline HTML report with filtering and change details.
+- **Keep code local:** no accounts, hosted backend, paid API, telemetry or cloud processing.
+
+## Quick start
+
+Requires **Node.js 20+**, npm, and Git for comparison commands. At this stage, Cress runs from the repository; it has **not** been published to npm.
+
+```bash
+git clone https://github.com/lucasonline0/cress.git
+cd cress
+npm ci
+
+# Scan an included sample:
+npm run scan:example
+
+# Scan your own NestJS source directory:
+npm run dev -- scan /path/to/your-nest-app/src
+
+# Machine-readable output:
+npm run dev -- scan /path/to/your-nest-app/src --format json
 ```
 
-Open the generated HTML file directly in a browser; no server is needed. `npm run scan:example` scans the included fixture. `npm run demo:diff` creates a temporary two-revision Git project, runs a declaration comparison, and generates an offline report. After building, use `node dist/cli.js <command>`. The CLI supports `--help` and `--version`.
+### Review authorization changes
 
-## What is extracted
+Use a local Git branch, tag or commit as the baseline:
 
-Recognized route decorators: `@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`, `@Options`, and `@Head`, paired with `@Controller`. Literal string and no-substitution template arguments are recorded; an omitted path is an empty declaration. Controller and handler paths are combined when both are statically known.
+```bash
+npm run dev -- diff /path/to/your-nest-app --base main
+npm run dev -- diff /path/to/your-nest-app --base main --format json
 
-Controller and handler declarations are kept separately in `authorizationDeclarations`, each with decorator expression, scope, source file/line, and observed/unknown semantics. `@UseGuards` expressions are recorded as written, without evaluation; `@Roles` string arguments are extracted as literals. `@Public` is recognized by decorator name only: the analyzer does not know if the application's marker is implemented or honored. `@SetMetadata` is recorded as an unknown declaration; its keys and values are not assigned authorization meaning. Roles without a local guard receive a warning, but are not treated as effective access control.
-
-The result also has a `globalDeclarations` collection. The analyzer recognizes syntactic `useGlobalGuards(...)` calls and `provide: APP_GUARD` registrations and records their source locations as unknown semantics. This does not establish which routes they apply to. Policy-based systems such as `@nestjs/authorization`, custom decorators, and runtime policy checks are not interpreted; encountered custom method decorators are recorded as unknown and warned about. No missing local guard or role declaration is treated as proof of public access or a vulnerability.
-
-Terminal output includes source file and line for every route. JSON uses schema version 1: a root path, scanned file and controller counts, findings with paths, names, source locations, scoped authorization declarations, facts, status and warnings, global declarations, plus project warnings. Status values are `DECLARED` (recognized local guard or role declaration with statically readable path/metadata), `UNRESOLVED` (a relevant path or declaration has unknown semantics or could not be read), and `REQUIRES_REVIEW` (no recognized local guard/role declaration, or a `@Public` marker whose semantics are unknown). These are analysis labels, never authorization verdicts.
-
-## Limits
-
-Only class method routes with the listed decorator names are discovered. Dynamic paths and role arguments are not evaluated. Aliases, inherited/decorated base controllers, custom route decorators, `@All`, module discovery, global guard scope, middleware, custom decorator semantics, service-level checks, policy-based authorization behavior, and actual runtime behavior are not resolved. Global declaration detection is syntactic and may not establish that a token is Nest's `APP_GUARD` or that a call is Nest's application API. Unknown method decorators are preserved as unknown declarations. Parse errors are reported, but partial findings may be incomplete. Scanning is limited to `.ts` and `.tsx`; common generated/dependency directories are excluded.
-
-The scan is read-only and offline: it reads source files, does not change the analyzed project, make network requests, load target modules, or collect telemetry. Do not treat an absent declaration as proof a route is public or a found declaration as proof it is enforced.
-
-## Compare a Git revision
-
-`diff` resolves a local commit, branch, or tag and reads source blobs from the local Git object database. It compares those declarations with the current working tree, including untracked TypeScript files. It does not fetch. The JSON `DiffResult` has `schemaVersion`, `base`, `root`, ordered `changes`, and `warnings`. Change types are `ROUTE_ADDED`, `ROUTE_REMOVED`, `ROUTE_MODIFIED`, `DECLARATION_ADDED`, `DECLARATION_REMOVED`, `DECLARATION_MODIFIED`, and `UNRESOLVED_CHANGE`. Each change includes a route identity, declaration scope/kind when relevant, before/after expressions and source locations, and a review explanation. These describe source changes only; no change type establishes an effective access result.
-
-Route matching uses HTTP method, controller class name, and handler name. Duplicate identities are reported as unresolved. A handler or controller rename can appear as a route removal plus an addition; moving a file while keeping these names can still match. Dynamic route identities remain unresolved. The baseline contains only files in the selected commit, so untracked files are included only on the working-tree side and are called out. Common dependency/generated directories are excluded on both sides. Unrelated non-TypeScript changes do not create findings.
-
-Example:
-
-```sh
-npm run dev -- diff . --base main
-npm run dev -- diff . --base main --format json
-npm run dev -- report . --base main --output ./cress-report.html
+npm run dev -- report /path/to/your-nest-app --base main --output ./cress-report.html
 ```
 
-The report is a standalone HTML document with inline styles and script. It uses DOM `textContent` for project data and includes no remote assets, fonts, or requests. It shows working-tree routes, status and method filters, declaration details, source references, observed global declarations, changes, and limitations. The requested output file is the only file the report command creates; it refuses to overwrite an existing output file.
+Open `cress-report.html` directly in a browser. No web server or network connection is needed. The report command writes only the specified output file and refuses to overwrite an existing one.
 
-## Shared analysis model
+To see a self-contained demonstration, run `npm run demo:diff`.
 
-Git comparisons and local HTML reports are implemented as consumers of the same `AnalysisResult` model. Git comparison reads local objects only; report rendering does not alter analyzer semantics.
+### Output example
 
-## Product demo script
+```text
+GET /users
+Before: Roles: ADMIN
+After:  No local role declaration found
 
-1. Install dependencies with `npm install`.
-2. Run `npm run demo:diff` to create a temporary Git baseline with an `ADMIN` role and a working-tree revision with a `MEMBER` role and no local guard.
-3. Review the terminal diff and open the generated report path printed by the script.
-4. Show before/after declaration provenance and explain that removing a local declaration does not prove public access or a vulnerability.
+Review: Declared role restriction removed.
+Effective access remains unknown.
+```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development and [LICENSE](LICENSE) for terms.
+*Illustrative output, not a claim about a real project.*
+
+## How it works
+
+Cress uses **TypeScript AST analysis** (`ts-morph`) without importing or executing code from the target project.
+
+| Capability | Current scope |
+| --- | --- |
+| Route discovery | NestJS `@Controller` and common HTTP method decorators |
+| Scoped declarations | Controller- and handler-level `@UseGuards`, `@Roles`, and observed metadata |
+| Global observations | Syntactic `APP_GUARD` registrations and `useGlobalGuards` calls |
+| Comparison | Local Git baseline vs. working tree |
+| Reports | Terminal, deterministic JSON, and self-contained HTML |
+| Uncertainty | Explicit `DECLARED`, `UNRESOLVED`, and `REQUIRES_REVIEW` analysis labels |
+
+These labels **are not access-control verdicts**. Cress cannot evaluate runtime policies, custom decorator semantics, service-level checks, middleware, dynamic expressions, or whether a declared guard is actually enforced. Global guard observations do not prove that a specific route is protected. Renames and duplicate route identities may lead to ambiguous diff results. Read-only parsing cannot guarantee complete coverage of a NestJS application.
+
+For the detailed behavior, inspect [the analyzer](src/analyzer.ts), [Git comparison](src/diff.ts), and [HTML report renderer](src/report.ts).
+
+## Development
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+npm run demo:diff
+```
+
+Continuous integration runs these checks on **Ubuntu, macOS, and Windows**. The cross-platform matrix is configured, but its checks must pass before the project should be considered cross-platform verified.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute and [LICENSE](LICENSE) for licensing.
+
+## Security and privacy
+
+Cress analyzes files locally and never imports target-project modules, fetches remote Git objects, or sends project data to a hosted service. The HTML report renders project content as untrusted data. Use the tool only for repositories you are authorized to inspect.
+
+**Do not treat Cress as a vulnerability scanner or a substitute for authorization tests or a security assessment.**
+
+## Roadmap
+
+- [x] NestJS authorization declaration inventory
+- [x] Local Git declaration comparison
+- [x] Offline, filterable HTML report
+- [ ] Expand real-world fixtures, harden cross-platform CI, and validate results on third-party projects
+- [ ] Improve precision and usability based on feedback from developers
+
+Cress is an early-stage, community-oriented developer tool. Feedback and reproducible test cases are welcome via GitHub issues.
+
+<p align="center"><sub>Designed to stay local. Built to make the complicated clearer.</sub></p>
