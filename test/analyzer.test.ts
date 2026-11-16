@@ -38,6 +38,7 @@ describe('analyzePath', () => {
       expect.objectContaining({ scope: 'handler', kind: 'SetMetadata', semantics: 'UNKNOWN', source: { file: 'routes.ts', line: 1 } }),
       expect.objectContaining({ scope: 'handler', kind: 'PolicyCheck', semantics: 'UNKNOWN' }),
     ]));
+    expect(result.findings[0]?.publicMarker).toBe(false);
     expect(result.findings[0]?.status).toBe('UNRESOLVED');
     expect(result.globalDeclarations).toEqual([expect.objectContaining({ scope: 'global', kind: 'APP_GUARD', semantics: 'UNKNOWN', source: { file: 'app.ts', line: 1 } })]);
   });
@@ -58,5 +59,10 @@ describe('analyzePath', () => {
     const result = analyzePath(root); const output = formatJson(result);
     expect(JSON.parse(output)).toEqual(result); expect(output).toBe(formatJson(analyzePath(root)));
     expect(result.findings[0]?.source).toEqual({ file: 'a.ts', line: 1 });
+  });
+  it('decodes escapes in literal decorator paths and role values', () => {
+    const root = fixture({ 'a.ts': `@Controller('v1\\u002fapi') class A { @Get('users') @Roles('ADM\\u0049N') list() {} }` });
+    const route = analyzePath(root).findings[0];
+    expect(route?.routePath).toBe('/v1/api/users'); expect(route?.roles).toEqual(['ADMIN']);
   });
 });

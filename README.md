@@ -10,9 +10,12 @@ Requires Node.js 20+ and npm. In this repository:
 npm install
 npm run dev -- scan test/fixtures/nest-app/src
 npm run dev -- scan test/fixtures/nest-app/src --format json
+npm run dev -- diff /path/to/nest-project --base main
+npm run dev -- diff /path/to/nest-project --base main --format json
+npm run dev -- report /path/to/nest-project --base main --output ./cress-report.html
 ```
 
-After building, run `node dist/cli.js scan <path>`. `npm run scan:example` is a short demo. The CLI also supports `--help` and `--version`.
+Open the generated HTML file directly in a browser; no server is needed. `npm run scan:example` scans the included fixture. `npm run demo:diff` creates a temporary two-revision Git project, runs a declaration comparison, and generates an offline report. After building, use `node dist/cli.js <command>`. The CLI supports `--help` and `--version`.
 
 ## What is extracted
 
@@ -30,15 +33,31 @@ Only class method routes with the listed decorator names are discovered. Dynamic
 
 The scan is read-only and offline: it reads source files, does not change the analyzed project, make network requests, load target modules, or collect telemetry. Do not treat an absent declaration as proof a route is public or a found declaration as proof it is enforced.
 
-## Future interfaces
+## Compare a Git revision
 
-Git-based comparison should consume two schema-versioned `AnalysisResult` snapshots and compare stable source/controller/handler/method keys, while surfacing moved or ambiguous matches for review. A future HTML report can render the same JSON model without changing analyzer semantics. Neither capability is implemented yet.
+`diff` resolves a local commit, branch, or tag and reads source blobs from the local Git object database. It compares those declarations with the current working tree, including untracked TypeScript files. It does not fetch. The JSON `DiffResult` has `schemaVersion`, `base`, `root`, ordered `changes`, and `warnings`. Change types are `ROUTE_ADDED`, `ROUTE_REMOVED`, `ROUTE_MODIFIED`, `DECLARATION_ADDED`, `DECLARATION_REMOVED`, `DECLARATION_MODIFIED`, and `UNRESOLVED_CHANGE`. Each change includes a route identity, declaration scope/kind when relevant, before/after expressions and source locations, and a review explanation. These describe source changes only; no change type establishes an effective access result.
+
+Route matching uses HTTP method, controller class name, and handler name. Duplicate identities are reported as unresolved. A handler or controller rename can appear as a route removal plus an addition; moving a file while keeping these names can still match. Dynamic route identities remain unresolved. The baseline contains only files in the selected commit, so untracked files are included only on the working-tree side and are called out. Common dependency/generated directories are excluded on both sides. Unrelated non-TypeScript changes do not create findings.
+
+Example:
+
+```sh
+npm run dev -- diff . --base main
+npm run dev -- diff . --base main --format json
+npm run dev -- report . --base main --output ./cress-report.html
+```
+
+The report is a standalone HTML document with inline styles and script. It uses DOM `textContent` for project data and includes no remote assets, fonts, or requests. It shows working-tree routes, status and method filters, declaration details, source references, observed global declarations, changes, and limitations. The requested output file is the only file the report command creates; it refuses to overwrite an existing output file.
+
+## Shared analysis model
+
+Git comparisons and local HTML reports are implemented as consumers of the same `AnalysisResult` model. Git comparison reads local objects only; report rendering does not alter analyzer semantics.
 
 ## Product demo script
 
-1. Clone or open the repository, then run `npm install`.
-2. Run `npm run scan:example` and point out the users prefix, empty GET path, guard, role, and public marker rows.
-3. Run `npm run dev -- scan test/fixtures/nest-app/src --format json` and show source locations and warnings.
-4. Explain that the report inventories declarations; it does not prove runtime access decisions.
+1. Install dependencies with `npm install`.
+2. Run `npm run demo:diff` to create a temporary Git baseline with an `ADMIN` role and a working-tree revision with a `MEMBER` role and no local guard.
+3. Review the terminal diff and open the generated report path printed by the script.
+4. Show before/after declaration provenance and explain that removing a local declaration does not prove public access or a vulnerability.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development and [LICENSE](LICENSE) for terms.

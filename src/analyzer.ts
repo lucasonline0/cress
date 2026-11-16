@@ -11,9 +11,13 @@ function collectFiles(directory: string): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     if (entry.isDirectory()) { if (!ignored.has(entry.name)) found.push(...collectFiles(path.join(directory, entry.name))); }
-    else if (/\.(ts|tsx)$/.test(entry.name) && !entry.name.endsWith('.d.ts')) found.push(path.join(directory, entry.name));
+    else if (isAnalyzableSourcePath(entry.name)) found.push(path.join(directory, entry.name));
   }
   return found.sort((a, b) => a.localeCompare(b));
+}
+export function isAnalyzableSourcePath(file: string): boolean {
+  const normalized = file.split(/[\\/]/).filter(Boolean);
+  return /\.(ts|tsx)$/.test(file) && !file.endsWith('.d.ts') && !normalized.some((part) => ignored.has(part));
 }
 function decorators(node: ClassDeclaration | MethodDeclaration, name: string): Decorator[] {
   return node.getDecorators().filter((decorator) => decorator.getName() === name);
@@ -21,15 +25,25 @@ function decorators(node: ClassDeclaration | MethodDeclaration, name: string): D
 function literalArg(decorator: Decorator): string | null {
   const expression = decorator.getArguments()[0];
   if (!expression) return '';
-  if (expression.getKind() === SyntaxKind.StringLiteral || expression.getKind() === SyntaxKind.NoSubstitutionTemplateLiteral) return expression.getText().slice(1, -1);
+  if (expression.getKind() === SyntaxKind.StringLiteral) return expression.asKindOrThrow(SyntaxKind.StringLiteral).getLiteralValue();
+  if (expression.getKind() === SyntaxKind.NoSubstitutionTemplateLiteral) return expression.asKindOrThrow(SyntaxKind.NoSubstitutionTemplateLiteral).getLiteralValue();
   return null;
+}
+function literalString(expression: import('ts-morph').Node): string | null {
+  if (expression.getKind() === SyntaxKind.StringLiteral) return expression.asKindOrThrow(SyntaxKind.StringLiteral).getLiteralValue();
+  if (expression.getKind() === SyntaxKind.NoSubstitutionTemplateLiteral) return expression.asKindOrThrow(SyntaxKind.NoSubstitutionTemplateLiteral).getLiteralValue();
+  return null;
+}
+function pathExpression(decorator: Decorator): string {
+  return decorator.getArguments()[0]?.getText() ?? '';
 }
 function literalArguments(decorator: Decorator): { values: string[]; unresolved: boolean } {
   const values: string[] = [];
   let unresolved = false;
   for (const argument of decorator.getArguments()) {
-    if (argument.getKind() === SyntaxKind.StringLiteral || argument.getKind() === SyntaxKind.NoSubstitutionTemplateLiteral) values.push(argument.getText().slice(1, -1));
-    else unresolved = true;
+    const value = literalString(argument);
+    if (value === null) unresolved = true;
+    else values.push(value);
   }
   return { values, unresolved };
 }
@@ -46,9 +60,11 @@ function metadata(node: ClassDeclaration | MethodDeclaration): { guards: string[
       if (args.unresolved) unresolved = true;
       roles.push(...args.values);
       if (args.values.length === 0 && args.unresolved === false) unresolved = true;
-    } else {
+    } else if (name === 'Public') {
       isPublic = true;
       if (decorator.getArguments().length > 0) unresolved = true;
+    } else {
+      unresolved = true;
     }
   }
   return { guards, roles, isPublic, unresolved };
@@ -65,9 +81,11 @@ function declarations(node: ClassDeclaration | MethodDeclaration, scope: 'contro
   return node.getDecorators().filter((decorator) => decorator.getName() !== 'Controller' && !Object.hasOwn(routeMethods, decorator.getName())).map((decorator) => {
     const kind = decorator.getName();
     const recognized = accessDecorators.has(kind);
+    const roleValues = kind === 'Roles' ? literalArguments(decorator) : null;
+    const knownLiteralRole = !roleValues || (!roleValues.unresolved && roleValues.values.length > 0);
     return {
       scope, kind, expression: decorator.getText(), source: sourceLocation(source, root, decorator.getStartLineNumber()),
-      semantics: recognized && kind !== 'Public' && kind !== 'SetMetadata' ? 'OBSERVED' : 'UNKNOWN',
+      semantics: recognized && kind !== 'Public' && kind !== 'SetMetadata' && knownLiteralRole ? 'OBSERVED' : 'UNKNOWN',
     };
   });
 }
@@ -117,8 +135,8 @@ function analyzeSource(source: SourceFile, root: string, hasGlobalDeclarations: 
       if (isPublic) warningsForRoute.push('@Public marker found by name; its runtime semantics are not verified.');
       if (guards.length) warningsForRoute.push('A guard is declared locally; its behavior and any global authorization policy are not evaluated.');
       if (!guards.length && !roles.length && !isPublic) warningsForRoute.push('No recognized local access declaration was found; absence does not establish that this route is public.');
-      const unknownDecorators = method.getDecorators().map((item) => item.getName()).filter((name) => !Object.hasOwn(routeMethods, name) && !accessDecorators.has(name));
-      if (unknownDecorators.length) warningsForRoute.push(`Uninterpreted method decorators: ${[...new Set(unknownDecorators)].join(', ')}.`);
+      const unknownDecorators = [...controller.getDecorators(), ...method.getDecorators()].map((item) => item.getName()).filter((name) => name !== 'Controller' && !Object.hasOwn(routeMethods, name) && !accessDecorators.has(name));
+      if (unknownDecorators.length) warningsForRoute.push(`Uninterpreted controller or handler decorators: ${[...new Set(unknownDecorators)].join(', ')}.`);
       if (hasGlobalDeclarations) warningsForRoute.push('Global authorization declarations were observed in scanned source; route scope and behavior are not established.');
       const unresolvedPath = rawPrefix === null || rawHandler === null;
       const hasUnknownDecoratorSemantics = localDeclarations.some((declaration) => declaration.semantics === 'UNKNOWN' && declaration.kind !== 'Public');
@@ -129,28 +147,27 @@ function analyzeSource(source: SourceFile, root: string, hasGlobalDeclarations: 
       if (guards.length) facts.push(`Guards: ${guards.join(', ')}`);
       if (roles.length) facts.push(`Roles: ${roles.join(', ')}`);
       if (isPublic) facts.push('@Public decorator name found');
-      findings.push({ method: verb, controllerPath: rawPrefix, handlerPath: rawHandler, routePath: joinPaths(rawPrefix, rawHandler), controller: controller.getName() ?? '<anonymous>', handler: method.getName(), source: sourceLocation(source, root, routeDecorator.getStartLineNumber()), authorizationDeclarations: localDeclarations, guards, roles, publicMarker: isPublic, status, facts, warnings: [...new Set(warningsForRoute)] });
+      findings.push({ method: verb, controllerPath: rawPrefix, handlerPath: rawHandler, controllerPathExpression: pathExpression(controllerDecorators[0]!), handlerPathExpression: pathExpression(routeDecorator), controllerPathSource: sourceLocation(source, root, controllerDecorators[0]!.getStartLineNumber()), handlerPathSource: sourceLocation(source, root, routeDecorator.getStartLineNumber()), routePath: joinPaths(rawPrefix, rawHandler), controller: controller.getName() ?? '<anonymous>', handler: method.getName(), source: sourceLocation(source, root, routeDecorator.getStartLineNumber()), authorizationDeclarations: localDeclarations, guards, roles, publicMarker: isPublic, status, facts, warnings: [...new Set(warningsForRoute)] });
     }
   }
   return { findings, controllers, warnings };
 }
 
-export function analyzePath(inputPath: string): AnalysisResult {
+export interface SourceText { file: string; content: string }
+
+export function analyzeSourceTexts(inputPath: string, sourceTexts: SourceText[]): AnalysisResult {
   const absolute = path.resolve(inputPath);
-  let stat;
-  try { stat = (awaitStat(absolute)); } catch { throw new Error(`Path does not exist or cannot be read: ${inputPath}`); }
-  if (!stat.isDirectory()) throw new Error(`Expected a directory path: ${inputPath}`);
-  const files = collectFiles(absolute);
+  const files = sourceTexts.filter((source) => isAnalyzableSourcePath(source.file)).sort((a, b) => a.file.localeCompare(b.file));
   const project = new Project({ useInMemoryFileSystem: true, skipAddingFilesFromTsConfig: true, compilerOptions: { experimentalDecorators: true } });
   const warnings: string[] = [];
-  for (const file of files) {
-    const content = readFileSync(file, 'utf8');
-    project.createSourceFile(file, content, { overwrite: true });
+  for (const source of files) {
+    const sourcePath = path.resolve(absolute, source.file);
+    const relativeSource = path.relative(absolute, sourcePath);
+    if (!relativeSource || relativeSource.startsWith('..') || path.isAbsolute(relativeSource)) throw new Error(`Source path escapes scan root: ${source.file}`);
+    project.createSourceFile(sourcePath, source.content, { overwrite: true });
   }
   const findings: RouteFinding[] = []; const globalDeclarations: AuthorizationDeclaration[] = []; let controllersFound = 0;
-  for (const source of project.getSourceFiles()) {
-    globalDeclarations.push(...findGlobalDeclarations(source, absolute));
-  }
+  for (const source of project.getSourceFiles()) globalDeclarations.push(...findGlobalDeclarations(source, absolute));
   const hasGlobalDeclarations = globalDeclarations.length > 0;
   for (const source of project.getSourceFiles()) {
     const result = analyzeSource(source, absolute, hasGlobalDeclarations);
@@ -158,5 +175,14 @@ export function analyzePath(inputPath: string): AnalysisResult {
   }
   const uniqueGlobalDeclarations = [...new Map(globalDeclarations.map((declaration) => [`${declaration.source.file}:${declaration.source.line}:${declaration.kind}:${declaration.expression}`, declaration])).values()];
   return { schemaVersion: 1, root: absolute, scannedFiles: files.length, controllersFound, findings, globalDeclarations: uniqueGlobalDeclarations, warnings: [...new Set(warnings)].sort() };
+}
+
+export function analyzePath(inputPath: string): AnalysisResult {
+  const absolute = path.resolve(inputPath);
+  let stat;
+  try { stat = (awaitStat(absolute)); } catch { throw new Error(`Path does not exist or cannot be read: ${inputPath}`); }
+  if (!stat.isDirectory()) throw new Error(`Expected a directory path: ${inputPath}`);
+  const files = collectFiles(absolute).map((file) => ({ file: path.relative(absolute, file), content: readFileSync(file, 'utf8') }));
+  return analyzeSourceTexts(absolute, files);
 }
 function awaitStat(file: string) { return statSync(file); }
