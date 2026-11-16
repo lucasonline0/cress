@@ -19,7 +19,8 @@
     "demo:diff": "node scripts/demo.mjs",
     "desktop:build": "node desktop/build.mjs",
     "desktop:dev": "npm run desktop:build && electron desktop-dist/main/main.cjs",
-    "desktop:typecheck": "tsc -p desktop/tsconfig.json"
+    "desktop:typecheck": "tsc -p desktop/tsconfig.json",
+    "desktop:smoke": "npm run desktop:build && node desktop/test/gui.cjs"
   },
   "dependencies": {
     "commander": "^12.1.0",
@@ -36,6 +37,7 @@
     "esbuild": "^0.28.2",
     "eslint": "^9.17.0",
     "globals": "^15.14.0",
+    "playwright": "^1.65.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.0",
