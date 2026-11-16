@@ -7,11 +7,15 @@ const ignored = new Set(['node_modules', 'dist', 'build', '.git', 'coverage', '.
 const routeMethods: Record<string, string> = { Get: 'GET', Post: 'POST', Put: 'PUT', Patch: 'PATCH', Delete: 'DELETE', Options: 'OPTIONS', Head: 'HEAD' };
 const accessDecorators = new Set(['UseGuards', 'Roles', 'Public', 'SetMetadata']);
 
-function collectFiles(directory: string): string[] {
+function collectFiles(directory: string, root: string, skippedSymlinks: string[]): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    if (entry.isDirectory()) { if (!ignored.has(entry.name)) found.push(...collectFiles(path.join(directory, entry.name))); }
-    else if (isAnalyzableSourcePath(entry.name)) found.push(path.join(directory, entry.name));
+    const fullPath = path.join(directory, entry.name);
+    if (entry.isSymbolicLink()) {
+      if (!ignored.has(entry.name)) skippedSymlinks.push(path.relative(root, fullPath).split(path.sep).join('/'));
+    } else if (entry.isDirectory()) {
+      if (!ignored.has(entry.name)) found.push(...collectFiles(fullPath, root, skippedSymlinks));
+    } else if (entry.isFile() && isAnalyzableSourcePath(entry.name)) found.push(fullPath);
   }
   return found.sort((a, b) => a.localeCompare(b));
 }
@@ -182,7 +186,10 @@ export function analyzePath(inputPath: string): AnalysisResult {
   let stat;
   try { stat = (awaitStat(absolute)); } catch { throw new Error(`Path does not exist or cannot be read: ${inputPath}`); }
   if (!stat.isDirectory()) throw new Error(`Expected a directory path: ${inputPath}`);
-  const files = collectFiles(absolute).map((file) => ({ file: path.relative(absolute, file), content: readFileSync(file, 'utf8') }));
-  return analyzeSourceTexts(absolute, files);
+  const skippedSymlinks: string[] = [];
+  const files = collectFiles(absolute, absolute, skippedSymlinks).map((file) => ({ file: path.relative(absolute, file), content: readFileSync(file, 'utf8') }));
+  const result = analyzeSourceTexts(absolute, files);
+  const warnings = skippedSymlinks.sort().map((file) => `Skipped symbolic link during analysis: ${file}`);
+  return warnings.length ? { ...result, warnings: [...result.warnings, ...warnings].sort() } : result;
 }
 function awaitStat(file: string) { return statSync(file); }

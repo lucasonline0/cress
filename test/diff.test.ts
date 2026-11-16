@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -25,6 +25,31 @@ function update(root: string, source: string): void { writeFileSync(path.join(ro
 afterEach(() => { for (const root of tempDirs.splice(0)) rmSync(root, { recursive: true, force: true }); });
 const basic = `@Controller('users') class Users { @Get() list() {} }`;
 describe('Git authorization comparison', () => {
+  it('accepts logical, physical, symlinked, and nested paths inside the repository', () => {
+    const root = repo(basic);
+    const aliasParent = mkdtempSync(path.join(os.tmpdir(), 'cress-git-alias-')); tempDirs.push(aliasParent);
+    const alias = path.join(aliasParent, 'project');
+    symlinkSync(root, alias, process.platform === 'win32' ? 'junction' : 'dir');
+    expect(comparePath(root, 'HEAD').changes).toEqual([]);
+    expect(comparePath(realpathSync(root), 'HEAD').changes).toEqual([]);
+    expect(comparePath(alias, 'HEAD').changes).toEqual([]);
+    expect(comparePath(path.join(root, 'src'), 'HEAD').changes).toEqual([]);
+  });
+  it('rejects paths whose resolved target escapes the repository', () => {
+    const root = repo(basic); const outside = mkdtempSync(path.join(os.tmpdir(), 'cress-outside-')); tempDirs.push(outside);
+    const escapeLink = path.join(root, 'external-project');
+    symlinkSync(outside, escapeLink, process.platform === 'win32' ? 'junction' : 'dir');
+    expect(() => comparePath(escapeLink, 'HEAD')).toThrow();
+    expect(() => comparePath(outside, 'HEAD')).toThrow();
+  });
+  it('does not follow symlinked source directories outside the scan root', () => {
+    const root = repo(basic); const outside = mkdtempSync(path.join(os.tmpdir(), 'cress-symlink-source-')); tempDirs.push(outside);
+    writeFileSync(path.join(outside, 'leak.controller.ts'), `@Controller('secret') class Leaked { @Get() read() {} }`);
+    symlinkSync(outside, path.join(root, 'src', 'external'), process.platform === 'win32' ? 'junction' : 'dir');
+    const result = analyzePath(root);
+    expect(result.findings.map((route) => route.controller)).toEqual(['Users']);
+    expect(result.warnings.some((warning) => warning.includes('Skipped symbolic link'))).toBe(true);
+  });
   it('finds added and removed routes with traceable source', () => {
     const root = repo(basic); update(root, `@Controller('users') class Users { @Get() list() {} @Post('') create() {} }`);
     const added = comparePath(root, 'HEAD');
@@ -73,6 +98,30 @@ describe('Git authorization comparison', () => {
     const root = repo(basic); const plain = mkdtempSync(path.join(os.tmpdir(), 'cress-nogit-')); tempDirs.push(plain);
     expect(() => comparePath(root, 'not-a-real-ref')).toThrow(/Git reference/);
     expect(() => comparePath(plain, 'HEAD')).toThrow();
+  });
+  it('accepts repository, physical, symlinked, and nested directory spellings', () => {
+    const root = repo(basic);
+    const aliasParent = mkdtempSync(path.join(os.tmpdir(), 'cress-git-alias-')); tempDirs.push(aliasParent);
+    const alias = path.join(aliasParent, 'project');
+    symlinkSync(root, alias, process.platform === 'win32' ? 'junction' : 'dir');
+    for (const projectPath of [root, realpathSync(root), alias, path.join(root, 'src')]) {
+      expect(comparePath(projectPath, 'HEAD').changes).toEqual([]);
+    }
+  });
+  it('rejects a symlink whose physical target is outside the repository', () => {
+    const root = repo(basic); const outside = mkdtempSync(path.join(os.tmpdir(), 'cress-outside-')); tempDirs.push(outside);
+    const escapedProject = path.join(root, 'external-project');
+    symlinkSync(outside, escapedProject, process.platform === 'win32' ? 'junction' : 'dir');
+    expect(() => comparePath(escapedProject, 'HEAD')).toThrow();
+    expect(() => comparePath(outside, 'HEAD')).toThrow();
+  });
+  it('does not follow source-directory symlinks during scans', () => {
+    const root = repo(basic); const outside = mkdtempSync(path.join(os.tmpdir(), 'cress-symlink-source-')); tempDirs.push(outside);
+    writeFileSync(path.join(outside, 'leak.controller.ts'), `@Controller('secret') class Leaked { @Get() read() {} }`);
+    symlinkSync(outside, path.join(root, 'src', 'external'), process.platform === 'win32' ? 'junction' : 'dir');
+    const result = analyzePath(root);
+    expect(result.findings.map((route) => route.controller)).toEqual(['Users']);
+    expect(result.warnings.some((warning) => warning.includes('Skipped symbolic link'))).toBe(true);
   });
   it('is read-only and produces deterministic JSON', () => {
     const root = repo(basic); update(root, `@Controller('users') class Users { @Get() list() {} @Post() add() {} }`);
