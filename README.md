@@ -25,7 +25,7 @@ Authorization logic is easy to scatter across guards, roles, decorators and appl
 
 ## Quick start
 
-Requires **Node.js 20+**, npm, and Git for comparison commands. At this stage, Cress runs from the repository; it has **not** been published to npm.
+Requires **Node.js 20.19+, 22.12+, or 24+**, npm, and Git for comparison commands. At this stage, Cress runs from the repository; it has **not** been published to npm.
 
 ```bash
 git clone https://github.com/lucasonline0/cress.git

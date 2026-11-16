@@ -4,7 +4,7 @@ Cress is a local-first TypeScript CLI. Keep analysis static and read-only: do no
 
 ## Development
 
-Use Node.js 20 or newer and npm:
+Use Node.js 20.19+, 22.12+, or 24+ and npm:
 
 ```sh
 npm install
@@ -13,6 +13,7 @@ npm run lint
 npm test
 npm run build
 npm run scan:example
+npm audit
 ```
 
 Add focused Vitest coverage for analyzer behavior and update the README when supported patterns or JSON output change. Source, tests, and public documentation use English.
