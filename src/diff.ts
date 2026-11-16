@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { statSync } from 'node:fs';
+import { lstatSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { analyzePath, analyzeSourceTexts, isAnalyzableSourcePath } from './analyzer.js';
 import type { AnalysisResult, AuthorizationChange, AuthorizationDeclaration, DiffResult, RouteFinding, SourceLocation } from './types.js';
@@ -19,27 +19,34 @@ function resolveProjectDirectory(inputPath: string): string {
   let details;
   try { details = statSync(absolute); } catch { throw new Error(`Path does not exist or cannot be read: ${inputPath}`); }
   if (!details.isDirectory()) throw new Error(`Expected a directory path: ${inputPath}`);
-  return absolute;
+  try { return path.resolve(realpathSync.native(absolute)); }
+  catch { throw new Error(`Path cannot be resolved to a physical directory: ${inputPath}`); }
 }
-function baselineFiles(projectPath: string, base: string): { root: string; files: Array<{ file: string; content: string }> } {
+function baselineFiles(projectPath: string, base: string): { root: string; files: Array<{ file: string; content: string }>; skippedSymlinks: string[] } {
   let topLevel: string;
   try { topLevel = git(projectPath, ['rev-parse', '--show-toplevel']).toString('utf8').trim(); }
   catch { throw new Error(`Path is not inside a Git working tree: ${projectPath}`); }
-  const repoRoot = path.resolve(topLevel);
-  const projectRelative = path.relative(repoRoot, projectPath).split(path.sep).join('/') || '.';
-  if (projectRelative === '..' || projectRelative.startsWith('../') || path.isAbsolute(projectRelative)) throw new Error('The requested path is outside the Git repository.');
+  let repoRoot: string;
+  try { repoRoot = path.resolve(realpathSync.native(path.resolve(topLevel))); }
+  catch { throw new Error('Git returned a repository root that cannot be resolved physically.'); }
+  const relativeProjectPath = path.relative(repoRoot, projectPath);
+  if (relativeProjectPath === '..' || relativeProjectPath.startsWith(`..${path.sep}`) || path.isAbsolute(relativeProjectPath)) throw new Error('The requested path is outside the Git repository.');
+  const projectRelative = relativeProjectPath.split(path.sep).join('/') || '.';
   let resolvedBase: string;
   try { resolvedBase = git(repoRoot, ['rev-parse', '--verify', '--end-of-options', `${base}^{commit}`]).toString('utf8').trim(); }
   catch { throw new Error(`Git reference does not resolve to a commit: ${base}`); }
   if (!resolvedBase) throw new Error(`Git reference does not resolve to a commit: ${base}`);
   const records = parseNulList(git(repoRoot, ['ls-tree', '-rz', '--full-tree', resolvedBase, '--', projectRelative]));
   const treeFiles: TreeFile[] = [];
+  const skippedSymlinks: string[] = [];
   for (const record of records) {
     const tab = record.indexOf('\t');
     if (tab < 0) continue;
     const [mode, type, objectId] = record.slice(0, tab).split(' ');
     const file = record.slice(tab + 1);
     if (type !== 'blob' || !mode || !objectId || !isAnalyzableSourcePath(file)) continue;
+    if (mode === '120000') { skippedSymlinks.push(file); continue; }
+    if (mode !== '100644' && mode !== '100755') continue;
     if (projectRelative !== '.' && !file.startsWith(`${projectRelative}/`)) continue;
     treeFiles.push({ objectId, file });
   }
@@ -47,13 +54,20 @@ function baselineFiles(projectPath: string, base: string): { root: string; files
     file: projectRelative === '.' ? file : file.slice(projectRelative.length + 1),
     content: git(repoRoot, ['cat-file', 'blob', objectId]).toString('utf8'),
   }));
-  return { root: projectPath, files };
+  return { root: projectPath, files, skippedSymlinks };
 }
 function relevantUntrackedFiles(projectPath: string): string[] {
-  const repoRoot = path.resolve(git(projectPath, ['rev-parse', '--show-toplevel']).toString('utf8').trim());
+  const repoRoot = path.resolve(realpathSync.native(path.resolve(git(projectPath, ['rev-parse', '--show-toplevel']).toString('utf8').trim())));
   const projectRelative = path.relative(repoRoot, projectPath).split(path.sep).join('/') || '.';
   return parseNulList(git(repoRoot, ['ls-files', '--others', '--exclude-standard', '-z', '--', projectRelative]))
-    .filter((file) => isAnalyzableSourcePath(file) && (projectRelative === '.' || file.startsWith(`${projectRelative}/`)));
+    .filter((file) => isAnalyzableSourcePath(file) && (projectRelative === '.' || file.startsWith(`${projectRelative}/`)))
+    .filter((file) => {
+      try { return lstatSync(path.join(repoRoot, file)).isFile(); }
+      catch { return false; }
+    });
+}
+function baselineSymlinkWarnings(files: string[]): string[] {
+  return files.sort().map((file) => `Skipped baseline symbolic link during analysis: ${file}`);
 }
 function routeId(route: RouteFinding): string { return `${route.method} ${route.controller}#${route.handler}`; }
 function routeSummary(route: RouteFinding): NonNullable<AuthorizationChange['route']> {
@@ -146,7 +160,10 @@ export function comparePath(inputPath: string, base: string): DiffResult {
   const baseline = baselineFiles(projectPath, base);
   const current = analyzePath(projectPath);
   const untracked = relevantUntrackedFiles(projectPath);
-  const warnings = untracked.length ? [`Working tree contains ${untracked.length} untracked TypeScript source file(s); they are included only on the working-tree side.`] : [];
+  const warnings = [
+    ...(untracked.length ? [`Working tree contains ${untracked.length} untracked TypeScript source file(s); they are included only on the working-tree side.`] : []),
+    ...baselineSymlinkWarnings(baseline.skippedSymlinks),
+  ];
   return compareAnalyses(analyzeSourceTexts(baseline.root, baseline.files), current, base, projectPath, warnings);
 }
 
@@ -155,7 +172,10 @@ export function loadReportInputs(inputPath: string, base: string): { before: Ana
   const baseline = baselineFiles(projectPath, base);
   const after = analyzePath(projectPath);
   const untracked = relevantUntrackedFiles(projectPath);
-  const warnings = untracked.length ? [`Working tree contains ${untracked.length} untracked TypeScript source file(s); they are included only on the working-tree side.`] : [];
+  const warnings = [
+    ...(untracked.length ? [`Working tree contains ${untracked.length} untracked TypeScript source file(s); they are included only on the working-tree side.`] : []),
+    ...baselineSymlinkWarnings(baseline.skippedSymlinks),
+  ];
   const before = analyzeSourceTexts(baseline.root, baseline.files);
   return { before, after, diff: compareAnalyses(before, after, base, projectPath, warnings) };
 }

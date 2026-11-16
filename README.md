@@ -25,7 +25,7 @@ Authorization logic is easy to scatter across guards, roles, decorators and appl
 
 ## Quick start
 
-Requires **Node.js 20+**, npm, and Git for comparison commands. At this stage, Cress runs from the repository; it has **not** been published to npm.
+Requires **Node.js 20.19+, 22.12+, or 24+**, npm, and Git for comparison commands. At this stage, Cress runs from the repository; it has **not** been published to npm.
 
 ```bash
 git clone https://github.com/lucasonline0/cress.git
@@ -83,7 +83,7 @@ Cress uses **TypeScript AST analysis** (`ts-morph`) without importing or executi
 | Reports | Terminal, deterministic JSON, and self-contained HTML |
 | Uncertainty | Explicit `DECLARED`, `UNRESOLVED`, and `REQUIRES_REVIEW` analysis labels |
 
-These labels **are not access-control verdicts**. Cress cannot evaluate runtime policies, custom decorator semantics, service-level checks, middleware, dynamic expressions, or whether a declared guard is actually enforced. Global guard observations do not prove that a specific route is protected. Renames and duplicate route identities may lead to ambiguous diff results. Read-only parsing cannot guarantee complete coverage of a NestJS application.
+These labels **are not access-control verdicts**. Cress cannot evaluate runtime policies, custom decorator semantics, service-level checks, middleware, dynamic expressions, or whether a declared guard is actually enforced. Global guard observations do not prove that a specific route is protected. Renames and duplicate route identities may lead to ambiguous diff results. Repository and requested paths are canonicalized before containment checks; targets that resolve outside the repository are rejected. Symbolic-link entries are skipped and reported instead of being followed. Read-only parsing cannot guarantee complete coverage of a NestJS application.
 
 For the detailed behavior, inspect [the analyzer](src/analyzer.ts), [Git comparison](src/diff.ts), and [HTML report renderer](src/report.ts).
 
