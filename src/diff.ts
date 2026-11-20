@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { lstatSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { analyzePath, analyzeSourceTexts, isAnalyzableSourcePath } from './analyzer.js';
+import { isProjectFile } from './multiframework/detection.js';
 import type { AnalysisResult, AuthorizationChange, AuthorizationDeclaration, DiffResult, RouteFinding, SourceLocation } from './types.js';
 
 interface TreeFile { objectId: string; file: string }
@@ -14,7 +15,7 @@ function git(cwd: string, args: string[], input?: string): Buffer {
 function parseNulList(buffer: Buffer): string[] {
   return buffer.toString('utf8').split('\0').filter(Boolean);
 }
-function resolveProjectDirectory(inputPath: string): string {
+export function resolveProjectDirectory(inputPath: string): string {
   const absolute = path.resolve(inputPath);
   let details;
   try { details = statSync(absolute); } catch { throw new Error(`Path does not exist or cannot be read: ${inputPath}`); }
@@ -22,7 +23,7 @@ function resolveProjectDirectory(inputPath: string): string {
   try { return path.resolve(realpathSync.native(absolute)); }
   catch { throw new Error(`Path cannot be resolved to a physical directory: ${inputPath}`); }
 }
-function baselineFiles(projectPath: string, base: string): { root: string; files: Array<{ file: string; content: string }>; skippedSymlinks: string[] } {
+export function baselineFiles(projectPath: string, base: string): { root: string; files: Array<{ file: string; content: string }>; skippedSymlinks: string[] } {
   let topLevel: string;
   try { topLevel = git(projectPath, ['rev-parse', '--show-toplevel']).toString('utf8').trim(); }
   catch { throw new Error(`Path is not inside a Git working tree: ${projectPath}`); }
@@ -44,7 +45,7 @@ function baselineFiles(projectPath: string, base: string): { root: string; files
     if (tab < 0) continue;
     const [mode, type, objectId] = record.slice(0, tab).split(' ');
     const file = record.slice(tab + 1);
-    if (type !== 'blob' || !mode || !objectId || !isAnalyzableSourcePath(file)) continue;
+    if (type !== 'blob' || !mode || !objectId || !isProjectFile(file)) continue;
     if (mode === '120000') { skippedSymlinks.push(file); continue; }
     if (mode !== '100644' && mode !== '100755') continue;
     if (projectRelative !== '.' && !file.startsWith(`${projectRelative}/`)) continue;
