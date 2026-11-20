@@ -1,120 +1,49 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/cress-white.png">
-    <img src="assets/brand/cress-black.png" alt="Cress mascot and wordmark" width="180">
-  </picture>
-</p>
+# Cress
 
-<h1 align="center">cress.</h1>
-<p align="center"><strong>Make access understandable.</strong></p>
-<p align="center">Local-first · Open source · NestJS · Technical alpha</p>
+Cress is a local-first desktop tool for exploring NestJS route authorization declarations and reviewing changes between Git revisions. It reports what it observes in source; it does not determine runtime access or scan for vulnerabilities.
 
-Cress helps backend developers **explore declared authorization controls and review changes between revisions** without executing their applications or uploading source code.
+![Cress access explorer](docs/screenshots/access-explorer.png)
 
-> **Technical alpha:** Cress inspects source-level declarations. It does **not** determine effective permissions, prove that endpoints are public, or detect vulnerabilities.
+## Desktop MVP
 
-## Why Cress?
+Download the appropriate unsigned package from the artifacts of a successful [GitHub Actions run](https://github.com/lucasonline0/cress/actions). Linux builds produce an AppImage; Windows and macOS builds are attempted in CI. Platform availability depends on the corresponding job succeeding. On Linux, make the AppImage executable (`chmod +x Cress-0.1.0.AppImage`) and launch it. AppImage requires a compatible Linux desktop and FUSE; it can also be extracted with `--appimage-extract`. Unsigned Windows and macOS builds may trigger SmartScreen or Gatekeeper warnings.
 
-Authorization logic is easy to scatter across guards, roles, decorators and application configuration. Cress offers a readable, traceable view of what is declared in a NestJS project and what changed.
+Choose **Open a project** and select a NestJS source directory, or use **Try the example**. The access explorer searches routes and shows declarations with source locations. In **Git changes**, enter a local branch, tag, or commit and compare it with the working tree. Git must be installed for comparisons; scanning does not require Git. Export scan JSON from the overview, or diff JSON and offline HTML from the changes view. Choose an export destination outside the analyzed project.
 
-- **Explore routes:** list recognized HTTP handlers, controller paths, guards, roles and other observed decorators.
-- **Trace evidence:** findings point to their original files and source lines.
-- **Compare revisions:** inspect added, removed and modified route/access declarations between a local Git baseline and the working tree.
-- **Review visually:** generate a standalone, offline HTML report with filtering and change details.
-- **Keep code local:** no accounts, hosted backend, paid API, telemetry or cloud processing.
-
-## Quick start
-
-Requires **Node.js 20.19+, 22.12+, or 24+**, npm, and Git for comparison commands. At this stage, Cress runs from the repository; it has **not** been published to npm.
-
-```bash
-git clone https://github.com/lucasonline0/cress.git
-cd cress
-npm ci
-
-# Scan an included sample:
-npm run scan:example
-
-# Scan your own NestJS source directory:
-npm run dev -- scan /path/to/your-nest-app/src
-
-# Machine-readable output:
-npm run dev -- scan /path/to/your-nest-app/src --format json
-```
-
-### Review authorization changes
-
-Use a local Git branch, tag or commit as the baseline:
-
-```bash
-npm run dev -- diff /path/to/your-nest-app --base main
-npm run dev -- diff /path/to/your-nest-app --base main --format json
-
-npm run dev -- report /path/to/your-nest-app --base main --output ./cress-report.html
-```
-
-Open `cress-report.html` directly in a browser. No web server or network connection is needed. The report command writes only the specified output file and refuses to overwrite an existing one.
-
-To see a self-contained demonstration, run `npm run demo:diff`.
-
-### Output example
-
-```text
-GET /users
-Before: Roles: ADMIN
-After:  No local role declaration found
-
-Review: Declared role restriction removed.
-Effective access remains unknown.
-```
-
-*Illustrative output, not a claim about a real project.*
-
-## How it works
-
-Cress uses **TypeScript AST analysis** (`ts-morph`) without importing or executing code from the target project.
-
-| Capability | Current scope |
-| --- | --- |
-| Route discovery | NestJS `@Controller` and common HTTP method decorators |
-| Scoped declarations | Controller- and handler-level `@UseGuards`, `@Roles`, and observed metadata |
-| Global observations | Syntactic `APP_GUARD` registrations and `useGlobalGuards` calls |
-| Comparison | Local Git baseline vs. working tree |
-| Reports | Terminal, deterministic JSON, and self-contained HTML |
-| Uncertainty | Explicit `DECLARED`, `UNRESOLVED`, and `REQUIRES_REVIEW` analysis labels |
-
-These labels **are not access-control verdicts**. Cress cannot evaluate runtime policies, custom decorator semantics, service-level checks, middleware, dynamic expressions, or whether a declared guard is actually enforced. Global guard observations do not prove that a specific route is protected. Renames and duplicate route identities may lead to ambiguous diff results. Repository and requested paths are canonicalized before containment checks; targets that resolve outside the repository are rejected. Symbolic-link entries are skipped and reported instead of being followed. Read-only parsing cannot guarantee complete coverage of a NestJS application.
-
-For the detailed behavior, inspect [the analyzer](src/analyzer.ts), [Git comparison](src/diff.ts), and [HTML report renderer](src/report.ts).
+Analysis stays on your computer and does not execute the project. Dynamic expressions, custom decorators, global guards, middleware, and runtime policy behavior can make effective authorization unknown. No missing guard or removed declaration proves that a route is public or vulnerable. Git comparison does not fetch remotes. Source symlinks are skipped.
 
 ## Development
 
-```bash
+Requires Git and Node.js 22.12 or later. Electron 45's binary must be installed explicitly after npm installation:
+
+```sh
+npm ci
+npx install-electron
+npm run desktop:dev
+```
+
+For checks and packaging:
+
+```sh
 npm run typecheck
+npm run desktop:typecheck
 npm run lint
 npm test
 npm run build
-npm run demo:diff
+npm run desktop:smoke
+npm run desktop:package -- --linux --x64
 ```
 
-Continuous integration runs these checks on **Ubuntu, macOS, and Windows**. The cross-platform matrix is configured, but its checks must pass before the project should be considered cross-platform verified.
+The GUI smoke test requires a desktop display (on Linux, `xvfb-run -a npm run desktop:smoke` can provide one). It tests actual Electron interaction with native dialog responses mocked. Build output is under `release/`. The package includes Electron and needs no system Node installation.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute and [LICENSE](LICENSE) for licensing.
+## CLI
 
-## Security and privacy
+```sh
+npm run build
+node dist/cli.js scan path/to/project
+node dist/cli.js scan path/to/project --format json
+node dist/cli.js diff path/to/project --base main
+node dist/cli.js report path/to/project --base main --output report.html
+```
 
-Cress analyzes files locally and never imports target-project modules, fetches remote Git objects, or sends project data to a hosted service. The HTML report renders project content as untrusted data. Use the tool only for repositories you are authorized to inspect.
-
-**Do not treat Cress as a vulnerability scanner or a substitute for authorization tests or a security assessment.**
-
-## Roadmap
-
-- [x] NestJS authorization declaration inventory
-- [x] Local Git declaration comparison
-- [x] Offline, filterable HTML report
-- [ ] Expand real-world fixtures, harden cross-platform CI, and validate results on third-party projects
-- [ ] Improve precision and usability based on feedback from developers
-
-Cress is an early-stage, community-oriented developer tool. Feedback and reproducible test cases are welcome via GitHub issues.
-
-<p align="center"><sub>Designed to stay local. Built to make the complicated clearer.</sub></p>
+See `--help` for command options. Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). MIT licensed.

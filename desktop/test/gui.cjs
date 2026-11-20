@@ -12,7 +12,7 @@ const { execFileSync } = require('node:child_process');
   fs.writeFileSync(source, "@Controller('users')\nclass Users { @Get() @Roles('ADMIN') list() {} }\n");
   git('add', '.'); git('commit', '-qm', 'baseline');
   fs.writeFileSync(source, "@Controller('users')\nclass Users { @Get() @Roles('USER') list() {} }\n");
-  const app = await electron.launch({ args: ['desktop-dist/main/main.cjs'] });
+  const app = await electron.launch(process.env.CRESS_PACKAGED_EXECUTABLE ? { executablePath: process.env.CRESS_PACKAGED_EXECUTABLE, args: [], cwd: dir } : { args: ['desktop-dist/main/main.cjs'] });
   try {
     const w = await app.firstWindow();
     await w.getByRole('button', { name: 'Try the example' }).click();

@@ -20,7 +20,8 @@
     "desktop:build": "node desktop/build.mjs",
     "desktop:dev": "npm run desktop:build && electron desktop-dist/main/main.cjs",
     "desktop:typecheck": "tsc -p desktop/tsconfig.json",
-    "desktop:smoke": "npm run desktop:build && node desktop/test/gui.cjs"
+    "desktop:smoke": "npm run desktop:build && node desktop/test/gui.cjs",
+    "desktop:package": "npm run desktop:build && electron-builder"
   },
   "dependencies": {
     "commander": "^12.1.0",
@@ -34,6 +35,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
     "electron": "^45.3.2",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
     "eslint": "^9.17.0",
     "globals": "^15.14.0",
@@ -50,6 +52,38 @@
     },
     "@typescript-eslint/typescript-estree": {
       "minimatch": "^11.0.8"
+    }
+  },
+  "main": "desktop-dist/main/main.cjs",
+  "build": {
+    "appId": "org.cress.desktop",
+    "productName": "Cress",
+    "asar": false,
+    "files": [
+      "desktop-dist/**/*",
+      "test/fixtures/nest-app/src/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Development",
+      "icon": "assets/brand/cress-black.png"
+    },
+    "win": {
+      "target": [
+        "portable"
+      ]
+    },
+    "mac": {
+      "target": [
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools"
     }
   }
 }
