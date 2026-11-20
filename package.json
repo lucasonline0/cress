@@ -1,7 +1,7 @@
 {
   "name": "cress",
-  "version": "0.1.0",
-  "description": "Local-first inventory of NestJS route access declarations",
+  "version": "0.2.0",
+  "description": "Local-first exploration of API authorization declarations",
   "type": "module",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"

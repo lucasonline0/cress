@@ -20,3 +20,13 @@ describe('versioned project analysis', () => {
     expect(analyzeProjectSources('/tmp/project', [{ file: 'package.json', content: '{"dependencies":{"next":"1"}}' }]).warnings).toContain('Supported framework detected; no routes were recognized.');
   });
 });
+
+it('detects controller evidence outside other manifest roots', () => {
+  const result = analyzeProjectSources('/tmp/project', [
+    { file: 'legacy/controller.ts', content: '@Controller("test") class Test { @Get() run() {} }' },
+    { file: 'web/package.json', content: '{"dependencies":{"next":"1"}}' },
+    { file: 'web/app/api/route.ts', content: 'export function GET() {}' },
+  ]);
+  expect(result.applications).toContainEqual({ framework: 'nestjs', root: '.' });
+  expect(result.routes.map(r => r.framework)).toContain('nestjs');
+});

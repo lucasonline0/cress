@@ -25,8 +25,17 @@ describe('versioned multi-framework Git comparison', () => {
       const state = git('status', '--porcelain').toString();
       const result = compareProject(root, 'HEAD');
       expect(new Set(result.diff.changes.map(c => c.framework))).toEqual(new Set(['nestjs', 'nextjs', 'go-chi']));
-      expect(result.diff.changes.every(c => c.type === 'DECLARATION_ADDED' || c.type === 'DECLARATION_REMOVED')).toBe(true);
+      expect(result.diff.changes.every(c => c.type === 'DECLARATION_MODIFIED')).toBe(true);
       expect(git('status', '--porcelain').toString()).toBe(state);
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
+});
+
+it('does not report unchanged ambiguous routes as changes', async () => {
+  const { analyzeProjectSources } = await import('../src/multiframework/project.js');
+  const { compareProjectAnalyses } = await import('../src/multiframework/project-diff.js');
+  const files = [{ file: 'controller.ts', content: '@Controller(prefix) class A { @Get(path) x() {} }' }];
+  const analysis = analyzeProjectSources('/tmp/sample', files);
+  expect(analysis.routes[0]?.path).toBeNull();
+  expect(compareProjectAnalyses(analysis, analysis, 'HEAD').changes).toEqual([]);
 });

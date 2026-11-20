@@ -26,6 +26,8 @@ jobs:
       - if: runner.os == 'Linux'
         run: xvfb-run -a npm run desktop:smoke
       - run: npm run desktop:package -- --publish never
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a env CRESS_PACKAGED_EXECUTABLE="$PWD/release/linux-unpacked/cress" node desktop/test/gui.cjs
       - uses: actions/upload-artifact@v4
         with:
           name: cress-${{ matrix.os }}

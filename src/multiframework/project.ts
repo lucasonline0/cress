@@ -35,11 +35,13 @@ export function analyzeProjectSources(root: string, files: ProjectFile[], inputW
     source: route.source, declarations: route.declarations.map(declaration => ({ kind: route.framework === 'go-chi' ? 'middleware' : 'helper call', scope: 'unknown', ...declaration })),
     status: route.method === 'UNRESOLVED' ? 'UNRESOLVED' : 'REQUIRES_REVIEW', warnings: ['Observed declarations do not establish effective authorization.'],
   }));
-  const globalDeclarations: ProjectAnalysis['globalDeclarations'] = [];
+  const globalDeclarations: ProjectAnalysis['globalDeclarations'] = other.globalObservations.map(o => ({ application: o.application, framework: 'nextjs', declaration: { kind: 'middleware observation', scope: 'global', expression: o.expression, source: { file: o.file, line: o.line }, semantics: 'UNKNOWN' } }));
   const warnings = [...inputWarnings, ...other.warnings];
+  if (applications.some(a => a.framework === 'nextjs')) warnings.push('Next.js middleware matchers, indirect exports, and runtime authorization are not fully analyzed.');
+  if (applications.some(a => a.framework === 'go-chi')) warnings.push('Chi mounts, indirect router construction, cross-file registrations, and runtime authorization may be unresolved.');
   const nestApps = applications.filter(app => app.framework === 'nestjs');
   // Existing users can scan controller directories without a package manifest.
-  if (!nestApps.length && !applications.length) nestApps.push({ framework: 'nestjs', root: '.' });
+  if (!nestApps.length) nestApps.push({ framework: 'nestjs', root: '.' });
   for (const app of nestApps) {
     const selected = files.filter(file => belongs(file.file, app.root) && !applications.some(otherApp => otherApp.root !== app.root && belongs(otherApp.root, app.root) && belongs(file.file, otherApp.root)));
     const prefix = app.root === '.' ? '' : `${app.root}/`;
@@ -51,7 +53,7 @@ export function analyzeProjectSources(root: string, files: ProjectFile[], inputW
       framework: 'nestjs', application: app.root, method: route.method, path: route.routePath,
       handler: `${route.controller}#${route.handler}`, source: rebase(route.source, app.root),
       declarations: route.authorizationDeclarations.map(declaration => rebaseDeclaration(declaration, app.root)),
-      status: route.status, warnings: route.warnings, nestjs: route,
+      status: route.status, warnings: route.warnings, nestjs: { ...route, source: rebase(route.source, app.root), controllerPathSource: rebase(route.controllerPathSource, app.root), handlerPathSource: rebase(route.handlerPathSource, app.root), authorizationDeclarations: route.authorizationDeclarations.map(d => ({ ...d, source: rebase(d.source, app.root) })) },
     });
   }
   if (!applications.length) warnings.push('No supported API framework was detected.');

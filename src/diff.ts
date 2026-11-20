@@ -67,6 +67,13 @@ function relevantUntrackedFiles(projectPath: string): string[] {
       catch { return false; }
     });
 }
+export function relevantUntrackedProjectFiles(projectPath: string): string[] {
+  const repoRoot = path.resolve(realpathSync.native(path.resolve(git(projectPath, ['rev-parse', '--show-toplevel']).toString('utf8').trim())));
+  const relative = path.relative(repoRoot, projectPath).split(path.sep).join('/') || '.';
+  return parseNulList(git(repoRoot, ['ls-files', '--others', '--exclude-standard', '-z', '--', relative]))
+    .filter(file => isProjectFile(file) && (relative === '.' || file.startsWith(`${relative}/`)))
+    .filter(file => { try { return lstatSync(path.join(repoRoot, file)).isFile(); } catch { return false; } });
+}
 function baselineSymlinkWarnings(files: string[]): string[] {
   return files.sort().map((file) => `Skipped baseline symbolic link during analysis: ${file}`);
 }

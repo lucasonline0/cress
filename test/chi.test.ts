@@ -28,3 +28,35 @@ func routes() {
     expect(result.routes).toHaveLength(0); expect(result.warnings).toHaveLength(1);
   });
 });
+
+it('does not inherit middleware across unrelated routers and reports dynamic methods', () => {
+  const source = `package main
+import "github.com/go-chi/chi/v5"
+func f() {
+ a:=chi.NewRouter()
+ b:=chi.NewRouter()
+ a.Use(first)
+ b.Use(second)
+ a.Get("/one",handler)
+ b.Method(variable,"/two",handler)
+ b.With(extra).Post("/three",handler)
+}`;
+  const result = analyzeChiSource('routes.go', source);
+  expect(result.routes.map(r => [r.path, r.middleware.map(m => m.expression)])).toEqual([['/one', ['first']], ['/three', ['second', 'extra']]]);
+  expect(result.warnings.some(w => w.includes('dynamic HTTP method'))).toBe(true);
+});
+
+it('resolves a named router mounted in the same function', () => {
+  const source = `package main
+import "github.com/go-chi/chi/v5"
+func f() {
+ parent:=chi.NewRouter()
+ child:=chi.NewRouter()
+ parent.Use(parentGuard)
+ child.Use(childGuard)
+ child.Get("/items",handler)
+ parent.Mount("/v1",child)
+}`;
+  const result = analyzeChiSource('routes.go', source);
+  expect(result.routes.map(r => [r.path, r.middleware.map(m => m.expression)])).toEqual([['/v1/items', ['parentGuard', 'childGuard']]]);
+});
