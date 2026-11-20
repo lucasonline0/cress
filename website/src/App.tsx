@@ -20,16 +20,16 @@ function Hero() {
     <section className="hero" id="top">
       <img className="hero-art" src={image('hero-landscape.webp')} alt="" fetchPriority="high" />
       <div className="hero-copy content">
-        <p className="eyebrow">An open source tool for NestJS</p>
+        <p className="eyebrow">An open-source tool for API access review</p>
         <h1 aria-label="Make access understandable.">
           <AnimatedLine text="Make access" />
           <em><AnimatedLine text="understandable." offset={10} /></em>
         </h1>
         <p className="hero-description">
-          Explore the authorization declarations behind your NestJS routes. Understand what changed. Keep your code local.
+          Explore API routes and authorization declarations across supported frameworks. Review what changed. Keep your code local.
         </p>
         <div className="actions">
-          <Button href={repository}>View on GitHub</Button>
+          <Button href={documentation}>Get Cress</Button>
           <Button href="#how-it-works" secondary>Explore Cress</Button>
         </div>
       </div>
@@ -44,11 +44,11 @@ function Introduction() {
         <p className="eyebrow">The problem</p>
         <h2 id="intro-heading">Authorization is rarely <em>in one place.</em></h2>
         <p className="intro-description">
-          In a typical NestJS project, access rules can be scattered across controllers, handlers, guards, roles, and
-          configuration. Cress helps you inspect these declarations and review changes with clarity, directly in your codebase.
+          Authorization logic can be scattered across routes, middleware, guards, roles, and application code. Cress brings
+          these declarations into a clearer view, helping you understand what&apos;s defined and what changed.
         </p>
         <ul className="tags" aria-label="Project characteristics">
-          {['NestJS', 'TypeScript', 'Local-first', 'Open source'].map((tag) => <li key={tag}>{tag}</li>)}
+          {['NestJS', 'Next.js', 'Go / Chi', 'Local-first', 'Open source'].map((tag) => <li key={tag}>{tag}</li>)}
         </ul>
       </Reveal>
     </section>
@@ -56,9 +56,9 @@ function Introduction() {
 }
 
 const steps = [
-  ['Point to your code', 'Analyze a local NestJS source directory.'],
-  ['Explore declarations', 'Inspect recognized routes, guards, roles, decorators, and source locations.'],
-  ['Review changes', 'Compare declarations across Git revisions and generate readable reports.'],
+  ['Point to your code', 'Open a local project and let Cress discover supported API frameworks.'],
+  ['Explore declarations', 'Inspect recognized routes, guards, middleware, roles, and source locations.'],
+  ['Review changes', 'Compare declarations against local Git revisions and export readable reports.'],
 ];
 
 function HowItWorks() {
@@ -86,11 +86,11 @@ function HowItWorks() {
 }
 
 const features = [
-  { icon: List, title: 'Route inventory', description: 'Find and list recognized HTTP routes in your project.' },
-  { icon: Shield, title: 'Guards and roles', description: 'See guard and role declarations found in source.' },
-  { icon: CodeXml, title: 'Source traceability', description: 'Find the file and line of each observed declaration.' },
-  { icon: GitCompare, title: 'Git comparison', description: 'Compare a local revision with your working tree.' },
-  { icon: FileText, title: 'HTML reports', description: 'Generate a standalone report to open or share offline.' },
+  { icon: List, title: 'Route inventory', description: 'Discover recognized API endpoints across supported frameworks.' },
+  { icon: Shield, title: 'Guards and middleware', description: 'Inspect observed guards, roles, middleware, and authorization-related declarations.' },
+  { icon: CodeXml, title: 'Source traceability', description: 'Trace findings back to their source files and line numbers.' },
+  { icon: GitCompare, title: 'Git comparison', description: 'Review declaration changes between local Git revisions.' },
+  { icon: FileText, title: 'Offline reports', description: 'Export structured JSON and standalone HTML reports.' },
 ];
 
 function Features() {
@@ -111,6 +111,34 @@ function Features() {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+
+function DesktopPreview() {
+  return (
+    <section className="content ruled split desktop-preview" id="desktop-app" aria-labelledby="desktop-heading">
+      <Reveal className="section-title">
+        <p className="eyebrow">The desktop app</p>
+        <h2 id="desktop-heading">Explore access <em>at the source.</em></h2>
+        <p className="desktop-intro">
+          Open a local project, inspect recognized routes and authorization declarations,
+          then review changes without running your application.
+        </p>
+        <div className="desktop-links"><Button href={documentation}>Get Cress</Button></div>
+      </Reveal>
+      <Reveal className="desktop-window" delay={80}>
+        <img
+          src={image('access-explorer.png')}
+          width="1280"
+          height="754"
+          loading="lazy"
+          decoding="async"
+          alt="Real Cress Desktop access explorer showing NestJS API routes, source locations, observed guards and roles, and review warnings"
+        />
+        <p>Actual desktop application · NestJS example project</p>
+      </Reveal>
     </section>
   );
 }
@@ -138,8 +166,8 @@ function Closing() {
         <p className="eyebrow">Get started</p>
         <h2 id="closing-heading">Stop guessing. <em>Start understanding.</em></h2>
         <div className="actions">
-          <Button href={repository}>Explore on GitHub</Button>
-          <Button href={documentation} secondary>Read documentation</Button>
+          <Button href={documentation}>Get Cress</Button>
+          <Button href={repository} secondary>View on GitHub</Button>
         </div>
       </Reveal>
     </section>
@@ -171,6 +199,7 @@ export function App() {
         <Introduction />
         <HowItWorks />
         <Features />
+        <DesktopPreview />
         <LocalFirst />
         <section className="content split demonstration" aria-labelledby="demo-heading">
           <Reveal className="section-title">

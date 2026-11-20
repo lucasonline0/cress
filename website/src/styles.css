@@ -434,3 +434,38 @@ h2 em { color: var(--accent); }
   *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0ms !important; transition-duration: .001ms !important; transition-delay: 0ms !important; }
   .reveal[data-reveal="pending"] { opacity: 1; transform: none; }
 }
+
+/* Real application preview: keep the editorial layout and the screenshot secondary to the landscapes. */
+.desktop-preview {
+  padding-block: calc(23 * var(--unit)) calc(24 * var(--unit));
+  align-items: start;
+}
+.desktop-preview .section-title h2 { font-size: clamp(31px, 3vw, 50px); }
+.desktop-intro {
+  max-width: 28ch;
+  margin-top: calc(12 * var(--unit));
+  color: var(--muted);
+  line-height: 1.4;
+}
+.desktop-links { margin-top: calc(14 * var(--unit)); }
+.desktop-window { min-width: 0; }
+.desktop-window img {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--rule);
+  border-radius: calc(8 * var(--unit));
+  background: #fff;
+  box-shadow: 0 12px 30px #34271e14;
+}
+.desktop-window p {
+  margin-top: calc(7 * var(--unit));
+  color: var(--muted);
+  font: 400 clamp(10px, .78vw, 12px)/1.4 var(--mono);
+}
+.code-removed { background: #a7492c28; box-shadow: inset 3px 0 var(--accent); }
+@media (max-width: 750px) {
+  .desktop-preview { padding-block: 23px; }
+  .desktop-intro { max-width: 50ch; }
+  .desktop-links { margin-top: 15px; }
+  .desktop-window p { margin-top: 8px; }
+}

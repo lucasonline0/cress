@@ -64,14 +64,14 @@ export function Demo() {
         <div className="demo-code">
           <pre key={String(after)} aria-label={after ? 'Working tree code' : 'Baseline code'}><code>
             <span className="code-line"><span aria-hidden="true">1</span>@Get(<i>'users'</i>)</span>
-            {!after && <span className="code-line"><span aria-hidden="true">2</span>@Roles(<i>'ADMIN'</i>)</span>}
+            {!after && <span className="code-line code-removed"><span aria-hidden="true">2</span>@Roles(<i>'ADMIN'</i>)</span>}
             <span className="code-line"><span aria-hidden="true">{after ? 2 : 3}</span>findAll() {'{'}</span>
             <span className="code-line"><span aria-hidden="true">{after ? 3 : 4}</span><b>{'  // ...'}</b></span>
             <span className="code-line"><span aria-hidden="true">{after ? 4 : 5}</span>{'}'}</span>
           </code></pre>
         </div>
         <div className="demo-result" role="status">
-          <p className="eyebrow">Cress result</p>
+          <p className="eyebrow">Git comparison · Before → After</p>
           <strong>Declared role restriction removed.</strong>
           <p>Effective access remains unknown. Review required.</p>
         </div>
@@ -83,7 +83,7 @@ export function Demo() {
 const questions: { question: string; answer: ReactNode }[] = [
   {
     question: 'What is Cress?',
-    answer: 'Cress is a technical alpha for examining NestJS authorization declarations and comparing them with a local Git baseline. It includes a desktop access explorer and a CLI.',
+    answer: 'Cress is an open-source desktop application and CLI for exploring API routes, inspecting authorization-related declarations, and reviewing changes between local Git revisions. It analyzes source code without running your application.',
   },
   {
     question: 'Is Cress open source?',
@@ -99,11 +99,11 @@ const questions: { question: string; answer: ReactNode }[] = [
   },
   {
     question: 'Which frameworks are supported?',
-    answer: 'The current analyzer is designed for NestJS projects written in TypeScript. Dynamic expressions and custom decorator behavior can require manual review.',
+    answer: 'Cress supports recognized authorization and routing patterns in NestJS, Next.js API routes, and Go applications using Chi. It can also analyze supported applications within the same repository. Dynamic behavior and framework-specific patterns may require manual review.',
   },
   {
     question: 'How do I get started?',
-    answer: <>Follow the <a href={documentation}>repository README</a> for desktop builds and instructions for running the CLI from source.</>,
+    answer: <>Start with the <a href={documentation}>installation instructions</a> for available desktop packages and the CLI. Desktop builds may be unsigned or platform-dependent; Git is needed for revision comparison.</>,
   },
   {
     question: 'Can I contribute?',
