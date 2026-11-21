@@ -45,7 +45,12 @@ done < "$stage/manifest"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail 'Invalid release version.'
 [[ "$sha256" =~ ^[a-f0-9]{64}$ ]] || fail 'Invalid release checksum.'
 [[ "$url" =~ ^https://github\.com/lucasonline0/cress/releases/download/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+\.AppImage$ ]] || fail 'Release URL is not an allowed official GitHub release URL.'
-fetch "$url" "$stage/Cress.AppImage"
+if [ -n "${CRESS_UPDATER_APPIMAGE_FILE:-}" ]; then
+  [ -f "$CRESS_UPDATER_APPIMAGE_FILE" ] && [ -r "$CRESS_UPDATER_APPIMAGE_FILE" ] || fail 'The downloaded update file cannot be read.'
+  cp -- "$CRESS_UPDATER_APPIMAGE_FILE" "$stage/Cress.AppImage"
+else
+  fetch "$url" "$stage/Cress.AppImage"
+fi
 actual=$(sha256sum < "$stage/Cress.AppImage"); actual=${actual%% *}
 [ "$actual" = "$sha256" ] || fail 'AppImage checksum verification failed; the existing installation was preserved.'
 fetch "$icon_url" "$stage/icon.png"
