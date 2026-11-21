@@ -17,6 +17,7 @@ const { execFileSync } = require('node:child_process');
     const w = await app.firstWindow();
     if (await w.getByRole('button', { name: 'Try the example' }).count()) throw new Error('Example option must not appear');
     await app.evaluate(({ dialog }, target) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [target] }); }, repo);
+    await w.getByRole('button', { name: 'Check for Cress updates' }).waitFor();
     await w.getByRole('button', { name: 'Open a project' }).last().click();
     await w.getByText('Analysis overview').waitFor({ timeout: 30000 });
     await w.getByRole('button', { name: 'Access explorer' }).click();
