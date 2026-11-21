@@ -22,10 +22,14 @@ describe('versioned multi-framework Git comparison', () => {
       writeFileSync(path.join(root, 'nest/users.ts'), '@Controller("users") class Users { @Roles("member") @Get() list() {} }');
       writeFileSync(path.join(root, 'web/app/api/route.ts'), 'export function GET() { return checkPermission() }');
       writeFileSync(path.join(root, 'api/main.go'), 'package main\nimport "github.com/go-chi/chi/v5"\nfunc f(){r:=chi.NewRouter();r.Use(newGuard);r.Get("/users",handler)}');
+      mkdirSync(path.join(root, 'web/app/api/new'));
+      writeFileSync(path.join(root, 'web/app/api/new/route.ts'), 'export function POST() {}');
       const state = git('status', '--porcelain').toString();
       const result = compareProject(root, 'HEAD');
       expect(new Set(result.diff.changes.map(c => c.framework))).toEqual(new Set(['nestjs', 'nextjs', 'go-chi']));
-      expect(result.diff.changes.every(c => c.type === 'DECLARATION_MODIFIED')).toBe(true);
+      expect(result.diff.changes.filter(c => c.type === 'DECLARATION_MODIFIED')).toHaveLength(3);
+      expect(result.diff.changes.some(c => c.type === 'ROUTE_ADDED' && c.path === '/api/new')).toBe(true);
+      expect(result.diff.warnings.some(w => w.includes('untracked relevant'))).toBe(true);
       expect(git('status', '--porcelain').toString()).toBe(state);
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
