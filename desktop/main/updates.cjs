@@ -111,15 +111,13 @@ function createUpdater({ app, dialog, shell, getWindow, isBusy, mainDirectory })
   };
   async function check() {
     const currentVersion = app.getVersion();
-    if (process.platform !== 'linux' || process.arch !== 'x64') {
-      return { currentVersion, available: false, supported: false, message: 'Automatic updates are currently supported on Linux x86_64.' };
-    }
     const release = await latestRelease();
+    const supported = process.platform === 'linux' && process.arch === 'x64' && app.isPackaged;
     return {
       currentVersion, latestVersion: release.version,
       available: compareVersions(release.version, currentVersion) > 0,
-      supported: app.isPackaged,
-      message: app.isPackaged ? '' : 'Install a packaged Cress build to use automatic updates.'
+      supported,
+      message: supported ? '' : 'One-click installation is supported on packaged Linux x86_64. Other platforms can download official releases.'
     };
   }
   async function install() {
