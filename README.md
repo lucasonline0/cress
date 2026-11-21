@@ -1,16 +1,30 @@
 # Cress
 
-Cress is a local-first desktop tool for exploring NestJS route authorization declarations and reviewing changes between Git revisions. It reports what it observes in source; it does not determine runtime access or scan for vulnerabilities.
+Cress is a local-first desktop tool for exploring NestJS, Next.js API, and Go/Chi route authorization declarations and reviewing changes between Git revisions. It reports what it observes in source; it does not determine runtime access or scan for vulnerabilities.
 
 ![Cress access explorer](docs/screenshots/access-explorer.png)
 
 ## Desktop MVP
 
-Download the appropriate unsigned package from the artifacts of a successful [GitHub Actions run](https://github.com/lucasonline0/cress/actions). Linux builds produce an AppImage; Windows and macOS builds are attempted in CI. Platform availability depends on the corresponding job succeeding. On Linux, make the AppImage executable (`chmod +x Cress-0.1.0.AppImage`) and launch it. AppImage requires a compatible Linux desktop and FUSE; it can also be extracted with `--appimage-extract`. Unsigned Windows and macOS builds may trigger SmartScreen or Gatekeeper warnings.
+Download the appropriate unsigned package from the artifacts of a successful [GitHub Actions run](https://github.com/lucasonline0/cress/actions). Linux builds produce an AppImage; Windows and macOS builds are attempted in CI. Platform availability depends on the corresponding job succeeding. On Linux, make the AppImage executable (`chmod +x Cress-0.2.0.AppImage`) and launch it. AppImage requires a compatible Linux desktop and FUSE; it can also be extracted with `--appimage-extract`. Unsigned Windows and macOS builds may trigger SmartScreen or Gatekeeper warnings.
 
-Choose **Open a project** and select a NestJS source directory, or use **Try the example**. The access explorer searches routes and shows declarations with source locations. In **Git changes**, enter a local branch, tag, or commit and compare it with the working tree. Git must be installed for comparisons; scanning does not require Git. Export scan JSON from the overview, or diff JSON and offline HTML from the changes view. Choose an export destination outside the analyzed project.
+Choose **Open a project** and select a project directory, or use **Try the example**. The access explorer searches routes and shows declarations with source locations. In **Git changes**, enter a local branch, tag, or commit and compare it with the working tree. Git must be installed for comparisons; scanning does not require Git. Export scan JSON from the overview, or diff JSON and offline HTML from the changes view. Choose an export destination outside the analyzed project.
 
 Analysis stays on your computer and does not execute the project. Dynamic expressions, custom decorators, global guards, middleware, and runtime policy behavior can make effective authorization unknown. No missing guard or removed declaration proves that a route is public or vulnerable. Git comparison does not fetch remotes. Source symlinks are skipped.
+
+## Analysis coverage and limitations
+
+Cress discovers applications from package manifests and Go modules, and can find NestJS controllers in a directory without a manifest. Mixed repositories are analyzed by application root. Generated and dependency directories are skipped. A supported framework with no recognized API routes is distinct from an unsupported project; neither proves that the project has no endpoints.
+
+- **NestJS:** literal controller and HTTP method decorators, guards, roles, public markers and observed global guard or metadata declarations. Dynamic expressions and custom semantics require review.
+- **Next.js:** App Router `app/api/**/route` and Pages Router `pages/api/**` files, including supported JavaScript and TypeScript extensions and dynamic segments. Pages Router methods are unresolved except for supported explicit switch cases with a rejecting default. Authorization-related calls and middleware matcher declarations are observations, not proof of enforcement. Middleware applicability, indirect exports and runtime behavior are not fully resolved.
+- **Go/Chi:** direct router registrations and lexically nested route groups, middleware, and route-local `With` chains. Same-function named mounts and direct router-parameter helpers within the local Go module are recognized; dynamic registrations, other mounts, router aliases, indirect cross-package construction and custom middleware behavior may be unresolved. Go itself is not required to run Cress.
+
+Git comparison uses local Git tree contents and the working tree. It does not check out or fetch a revision. Route moves, duplicate identities and dynamic constructs may be ambiguous; review source references. Reports are offline and do not establish runtime access.
+
+### JSON schema
+
+Scan and diff JSON now use `schemaVersion: 2`. Scan output contains `applications`, framework-neutral `routes`, `globalDeclarations`, and `warnings`; NestJS-only details appear in each NestJS route's `nestjs` field. Diff output contains framework and application identity alongside before/after source observations. Consumers of version 1 fields such as `findings` must migrate to `routes`. A route's declarations represent source observations rather than effective authorization.
 
 ## Development
 

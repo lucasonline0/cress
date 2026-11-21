@@ -51,7 +51,7 @@ app.whenReady().then(() => {
     const destination = path.resolve(fs.realpathSync(path.dirname(result.filePath)), path.basename(result.filePath));
     try { if (fs.lstatSync(destination).isSymbolicLink()) throw new Error('Cannot export through a symbolic link'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     if (selected) { const relative = path.relative(selected, destination); if (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative)) throw new Error('Choose a destination outside the analyzed project'); }
-    const content = kind === 'html' ? require('./report.cjs').createHtmlReport(reportResult) : JSON.stringify(kind === 'scan' ? scanResult : reportResult.diff, null, 2) + '\n';
+    const content = kind === 'html' ? require('./report.cjs').createProjectReport(reportResult) : JSON.stringify(kind === 'scan' ? scanResult : reportResult.diff, null, 2) + '\n';
     const temporary = path.join(path.dirname(destination), `.cress-${require('node:crypto').randomUUID()}.tmp`);
     try { await fs.promises.writeFile(temporary, content, { encoding: 'utf8', flag: 'wx' }); await fs.promises.rename(temporary, destination); } finally { await fs.promises.rm(temporary, { force: true }); }
     return true;

@@ -3,7 +3,7 @@ import { build as viteBuild } from 'vite';
 import { mkdir, copyFile } from 'node:fs/promises';
 await mkdir('desktop-dist/main', { recursive: true });
 await build({ entryPoints: ['desktop/main/worker.ts'], bundle: true, platform: 'node', format: 'cjs', outfile: 'desktop-dist/main/worker.cjs', packages: 'external' });
-await build({ entryPoints: ['src/report.ts'], bundle: true, platform: 'node', format: 'cjs', outfile: 'desktop-dist/main/report.cjs' });
+await build({ entryPoints: ['src/multiframework/report.ts'], bundle: true, platform: 'node', format: 'cjs', outfile: 'desktop-dist/main/report.cjs' });
 await copyFile('desktop/main/main.cjs', 'desktop-dist/main/main.cjs');
 await copyFile('desktop/preload/preload.cjs', 'desktop-dist/main/preload.cjs');
 await viteBuild({ root: 'desktop/renderer', base: './', build: { outDir: '../../desktop-dist/renderer', emptyOutDir: true } });
