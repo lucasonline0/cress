@@ -8,7 +8,7 @@ import path from 'node:path';
 import { loadPolicies, evaluatePolicies } from './multiframework/policies.js';
 import { createProjectReport } from './multiframework/report.js';
 const program = new Command();
-program.name('cress').description('Inventory supported API authorization declarations locally.').version('0.2.0');
+program.name('cress').description('Inventory supported API authorization declarations locally.').version('0.4.0');
 program.command('scan').description('Scan a directory for supported API declarations.')
   .argument('<path>', 'directory to scan')
   .option('--format <format>', 'output format: terminal or json', 'terminal')

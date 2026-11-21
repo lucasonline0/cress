@@ -70,4 +70,4 @@ jobs:
           (cd release-assets && sha256sum "Cress-$version.AppImage" > "Cress-$version.AppImage.sha256")
           mapfile -d '' -t assets < <(find release-assets -maxdepth 1 -type f \( -name '*.AppImage' -o -name '*.sha256' -o -name '*.exe' -o -name '*.zip' \) -print0)
           test "${#assets[@]}" -ge 2
-          gh release create "$tag" "${assets[@]}" --target "$GITHUB_SHA" --title "Cress $version" --notes "Desktop access review for NestJS, Next.js API routes and Go/Chi. Includes a refined desktop interface and Linux in-app update workflow. Packages are unsigned; source declarations do not prove effective access."
+          gh release create "$tag" "${assets[@]}" --target "$GITHUB_SHA" --title "Cress $version" --notes "Authorization review grouped by endpoint, expected access policies, and the cress check command for CI, with support for NestJS, Next.js and Go/Chi. Packages are unsigned; source declarations do not prove effective access."
