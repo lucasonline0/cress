@@ -36,7 +36,7 @@ curl -fsSL https://getcress.vercel.app/install.sh | bash
 
 Cress checks official GitHub Releases for updates and verifies the published AppImage SHA-256 before installing. The public website manifest continues to provide the one-command Linux installer with its stable version. When a newer version is published, the top-right **New update** control offers a confirmed, checksum-verified user-local installation and restarts the application. Standalone AppImages can migrate into the managed installation. Windows and macOS builds are currently distributed as unsigned packages; automated installation is not supported there.
 
- Once available, it will download the Linux x86_64 AppImage, verify its SHA-256 checksum, install it in your user directory and add an application-menu entry. See [Linux installer release preparation](docs/linux-installation.md) for the remaining steps and limitations.
+For installation details and checksum limitations, see [Linux installation](docs/linux-installation.md).
 
 ## Development
 
