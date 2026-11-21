@@ -103,3 +103,9 @@ Example GitHub Actions step (ensure the base branch is fetched):
 - run: npm ci && npm run build
 - run: node dist/cli.js check . --base origin/main
 ```
+
+### Policy coverage and test templates
+
+`cress coverage <path> [--openapi <file>]` prints JSON coverage and optional OpenAPI drift. Paths with ambiguous matches require review; static observations do not establish authorization. The OpenAPI document can be JSON or YAML.
+
+`cress generate-test <path> --application <root> --framework <name> --method <method> --route <path> [--runner jest|vitest]` writes an editable test template to stdout. When runner detection is ambiguous or unavailable, select `--runner` explicitly. Configure the test harness, fixtures, credentials, and expected status codes before running it. Both commands exit 0 on successful generation and 1 on errors. The desktop Access Matrix saves developer expectations under `accessMatrix` in `.cress.json` while retaining existing policies.

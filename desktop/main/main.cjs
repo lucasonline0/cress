@@ -8,6 +8,7 @@ let selected;
 let busy = false;
 let scanResult;
 let reportResult;
+let openApiSource;
 function validSender(event) { return window && event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame; }
 function requireSender(event) { if (!validSender(event)) throw new Error('Invalid sender'); }
 function selectDirectory(input) {
@@ -29,9 +30,9 @@ app.whenReady().then(() => {
     if (busy) throw new Error('An operation is already running');
     const result = await dialog.showOpenDialog(window, { properties: ['openDirectory'] });
     if (result.canceled || !result.filePaths[0]) return null;
-    selected = selectDirectory(result.filePaths[0]); scanResult = undefined; reportResult = undefined; return selected;
+    selected = selectDirectory(result.filePaths[0]); scanResult = undefined; reportResult = undefined; openApiSource = undefined; return selected;
   });
-  ipcMain.handle('project:example', event => { requireSender(event); if (busy) throw new Error('An operation is already running'); selected = selectDirectory(path.resolve(__dirname, '../../test/fixtures/nest-app/src')); scanResult = undefined; reportResult = undefined; return selected; });
+  ipcMain.handle('project:example', event => { requireSender(event); if (busy) throw new Error('An operation is already running'); selected = selectDirectory(path.resolve(__dirname, '../../test/fixtures/nest-app/src')); scanResult = undefined; reportResult = undefined; openApiSource = undefined; return selected; });
   ipcMain.handle('project:scan', async (event, project) => {
     requireSender(event);
     if (typeof project !== 'string' || !selected || project !== selected || selectDirectory(project) !== selected) throw new Error('Select a project first');
@@ -60,6 +61,37 @@ app.whenReady().then(() => {
     const temporary = path.join(path.dirname(destination), `.cress-${require('node:crypto').randomUUID()}.tmp`);
     try { await fs.promises.writeFile(temporary, content, { encoding: 'utf8', flag: 'wx' }); await fs.promises.rename(temporary, destination); } finally { await fs.promises.rm(temporary, { force: true }); }
     return true;
+  });
+  async function experience(event, data) {
+    requireSender(event);
+    if (!selected || selectDirectory(selected) !== selected) throw new Error('Select a project first');
+    if (busy) throw new Error('An operation is already running');
+    busy = true; try { return await runWorker({ project: selected, ...data }); } finally { busy = false; }
+  }
+  ipcMain.handle('experience:load', event => experience(event, { operation: 'loadMatrix' }));
+  ipcMain.handle('experience:save', (event, matrix) => experience(event, { operation: 'saveMatrix', matrix }));
+  ipcMain.handle('experience:coverage', event => experience(event, { operation: 'coverage' }));
+  ipcMain.handle('experience:detectRunner', (event, index) => { if (!Number.isSafeInteger(index) || index < 0) throw new Error('Invalid route'); return experience(event, { operation: 'detectRunner', routeIndex: index }); });
+  ipcMain.handle('experience:generate', (event, index, scenarios, runner) => { if (!Number.isSafeInteger(index) || index < 0 || !Array.isArray(scenarios) || scenarios.length > 100 || !['jest', 'vitest'].includes(runner)) throw new Error('Invalid test configuration'); return experience(event, { operation: 'generate', routeIndex: index, scenarios, runner }); });
+  ipcMain.handle('experience:openapi', async event => {
+    requireSender(event); if (!selected) throw new Error('Select a project first');
+    const result = await dialog.showOpenDialog(window, { properties: ['openFile'], filters: [{ name: 'OpenAPI', extensions: ['json', 'yaml', 'yml'] }] });
+    if (result.canceled || !result.filePaths[0]) return null;
+    const file = result.filePaths[0]; const stat = await fs.promises.stat(file); if (!stat.isFile() || stat.size > 5 * 1024 * 1024) throw new Error('Select an OpenAPI file smaller than 5 MB');
+    const text = await fs.promises.readFile(file, 'utf8');
+    const report = await experience(event, { operation: 'coverage', openapi: text, openapiFile: file });
+    openApiSource = { file, text }; return report;
+  });
+  ipcMain.handle('experience:source', event => { requireSender(event); if (!selected || !openApiSource) throw new Error('Import an OpenAPI document first'); return openApiSource; });
+  ipcMain.handle('experience:export', async (event, content, extension) => {
+    requireSender(event); if (!selected || typeof content !== 'string' || content.length > 5 * 1024 * 1024 || !['json', 'html', 'ts', 'go'].includes(extension)) throw new Error('Invalid export');
+    const result = await dialog.showSaveDialog(window, { defaultPath: `cress-export.${extension}`, filters: [{ name: extension.toUpperCase(), extensions: [extension] }], properties: ['showOverwriteConfirmation'] });
+    if (result.canceled || !result.filePath) return false;
+    const destination = path.resolve(fs.realpathSync(path.dirname(result.filePath)), path.basename(result.filePath));
+    try { if (fs.lstatSync(destination).isSymbolicLink()) throw new Error('Cannot export through a symbolic link'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    const relative = path.relative(selected, destination); if (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative)) throw new Error('Choose a destination outside the analyzed project');
+    const temporary = path.join(path.dirname(destination), `.cress-${require('node:crypto').randomUUID()}.tmp`);
+    try { await fs.promises.writeFile(temporary, content, { encoding: 'utf8', flag: 'wx' }); await fs.promises.rename(temporary, destination); } finally { await fs.promises.rm(temporary, { force: true }); } return true;
   });
   window.loadFile(path.join(__dirname, '../renderer/index.html'));
 });
