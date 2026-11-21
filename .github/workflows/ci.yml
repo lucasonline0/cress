@@ -38,3 +38,33 @@ jobs:
             release/*.exe
             release/*.zip
           if-no-files-found: error
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cress-*
+          path: release-assets
+          merge-multiple: true
+      - name: Publish verified packages to GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          tag="v$version"
+          appimage="release-assets/Cress-$version.AppImage"
+          test -s "$appimage"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; refusing to overwrite published assets."
+            exit 0
+          fi
+          (cd release-assets && sha256sum "Cress-$version.AppImage" > "Cress-$version.AppImage.sha256")
+          mapfile -d '' -t assets < <(find release-assets -maxdepth 1 -type f \( -name '*.AppImage' -o -name '*.sha256' -o -name '*.exe' -o -name '*.zip' \) -print0)
+          test "${#assets[@]}" -ge 2
+          gh release create "$tag" "${assets[@]}" --target "$GITHUB_SHA" --title "Cress $version" --notes "Desktop access review for NestJS, Next.js API routes and Go/Chi. Includes a refined desktop interface and Linux in-app update workflow. Packages are unsigned; source declarations do not prove effective access."
