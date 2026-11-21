@@ -4,6 +4,9 @@ const os = require('node:os');
 const path = require('node:path');
 const https = require('node:https');
 const { spawn } = require('node:child_process');
+const { createHash } = require('node:crypto');
+const { Transform } = require('node:stream');
+const { pipeline } = require('node:stream/promises');
 
 const API = 'https://api.github.com/repos/lucasonline0/cress/releases/latest';
 const RELEASES = 'https://github.com/lucasonline0/cress/releases/latest';
@@ -78,13 +81,75 @@ async function latestRelease() {
   }
   return { version, name, url: image.browser_download_url, checksumUrl: checksum.browser_download_url };
 }
-function installScript(mainDirectory, manifestFile) {
+const MAX_APPIMAGE_BYTES = 1024 * 1024 * 1024;
+function downloadPercent(received, total) {
+  if (!Number.isFinite(total) || total <= 0 || !Number.isFinite(received) || received < 0) return null;
+  return Math.min(100, Math.max(0, Math.round(100 * received / total)));
+}
+function downloadRelease(url, destination, onProgress, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    if (redirects > 5) return reject(new Error('Too many update redirects'));
+    const target = new URL(url);
+    if (target.protocol !== 'https:' || !allowedHosts.has(target.hostname)) return reject(new Error('Untrusted update download host'));
+    const req = https.get(target, { headers: { 'User-Agent': 'Cress-Desktop', 'Accept-Encoding': 'identity' }, timeout: 30000 }, async response => {
+      if ([301, 302, 303, 307, 308].includes(response.statusCode) && response.headers.location) {
+        response.resume();
+        downloadRelease(new URL(response.headers.location, target).href, destination, onProgress, redirects + 1).then(resolve, reject);
+        return;
+      }
+      if (response.statusCode !== 200) {
+        response.resume();
+        reject(new Error('Update download returned HTTP ' + response.statusCode));
+        return;
+      }
+      const lengthHeader = response.headers['content-length'];
+      const length = typeof lengthHeader === 'string' ? Number(lengthHeader) : null;
+      const total = Number.isSafeInteger(length) && length > 0 ? length : null;
+      if (total !== null && total > MAX_APPIMAGE_BYTES) {
+        response.destroy();
+        reject(new Error('Update exceeds the allowed download size'));
+        return;
+      }
+      let received = 0, lastSent = -1, lastTime = 0;
+      const digest = createHash('sha256');
+      const meter = new Transform({
+        transform(chunk, encoding, callback) {
+          received += chunk.length;
+          if (received > MAX_APPIMAGE_BYTES) {
+            callback(new Error('Update exceeds the allowed download size'));
+            return;
+          }
+          digest.update(chunk);
+          const percent = downloadPercent(received, total);
+          const now = Date.now();
+          if (percent !== lastSent && (percent === 100 || now - lastTime > 130)) {
+            lastSent = percent;
+            lastTime = now;
+            onProgress({ phase: 'downloading', receivedBytes: received, totalBytes: total, percent });
+          } else if (percent === null && now - lastTime > 250) {
+            lastTime = now;
+            onProgress({ phase: 'downloading', receivedBytes: received, totalBytes: null, percent: null });
+          }
+          callback(null, chunk);
+        }
+      });
+      try {
+        await pipeline(response, meter, fs.createWriteStream(destination, { flags: 'wx', mode: 0o600 }));
+        onProgress({ phase: 'downloading', receivedBytes: received, totalBytes: total, percent: downloadPercent(received, total) });
+        resolve({ sha256: digest.digest('hex'), bytes: received });
+      } catch (error) { reject(error); }
+    });
+    req.on('timeout', () => req.destroy(new Error('Update download timed out')));
+    req.on('error', reject);
+  });
+}
+function installScript(mainDirectory, manifestFile, appImageFile) {
   const file = path.join(mainDirectory, 'install.sh');
   if (!fs.statSync(file).isFile()) throw new Error('The packaged installer is unavailable');
   return new Promise((resolve, reject) => {
     const child = spawn('/bin/bash', [file], {
       stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
-      env: { ...process.env, CRESS_UPDATER_MANIFEST_FILE: manifestFile }
+      env: { ...process.env, CRESS_UPDATER_MANIFEST_FILE: manifestFile, CRESS_UPDATER_APPIMAGE_FILE: appImageFile }
     });
     let output = '', bytes = 0;
     const collect = data => {
@@ -105,9 +170,9 @@ function installScript(mainDirectory, manifestFile) {
 }
 function createUpdater({ app, dialog, shell, getWindow, isBusy, mainDirectory }) {
   let installing = false;
-  const send = message => {
+  const send = payload => {
     const window = getWindow();
-    if (window && !window.isDestroyed()) window.webContents.send('updates:progress', message);
+    if (window && !window.isDestroyed()) window.webContents.send('updates:progress', payload);
   };
   async function check() {
     const currentVersion = app.getVersion();
@@ -139,24 +204,36 @@ function createUpdater({ app, dialog, shell, getWindow, isBusy, mainDirectory })
     installing = true;
     let directory;
     try {
-      send('Checking the official release checksum…');
+      send({ phase: 'checking', percent: null });
       const release = await latestRelease();
       if (compareVersions(release.version, app.getVersion()) <= 0) return { status: 'current' };
-      const text = (await requestText(release.checksumUrl, 2048)).trim();
-      const checksumMatch = /^([a-f0-9]{64})[ \t]+\*?([^\r\n]+)$/.exec(text);
-      if (!checksumMatch || checksumMatch[2] !== release.name) throw new Error('The official release checksum is invalid');
-      const manifest = parseManifest('status=ready\nversion=' + release.version + '\nurl=' + release.url + '\nsha256=' + checksumMatch[1] + '\n');
+      const checksumText = (await requestText(release.checksumUrl, 2048)).trim();
+      const match = /^([a-f0-9]{64})[ \t]+\*?([^\r\n]+)$/.exec(checksumText);
+      if (!match || match[2] !== release.name) throw new Error('The official release checksum is invalid');
+      const manifest = parseManifest('status=ready\nversion=' + release.version + '\nurl=' + release.url + '\nsha256=' + match[1] + '\n');
       directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cress-update-'));
       const manifestFile = path.join(directory, 'manifest.txt');
+      const appImageFile = path.join(directory, release.name);
       fs.writeFileSync(manifestFile, 'status=' + manifest.status + '\nversion=' + manifest.version + '\nurl=' + manifest.url + '\nsha256=' + manifest.sha256 + '\n', { flag: 'wx', mode: 0o600 });
-      send('Downloading and verifying Cress ' + release.version + '…');
-      await installScript(mainDirectory, manifestFile);
+      send({ phase: 'downloading', receivedBytes: 0, totalBytes: null, percent: null });
+      const downloaded = await downloadRelease(release.url, appImageFile, send);
+      send({ phase: 'verifying', percent: null });
+      if (downloaded.sha256 !== manifest.sha256) throw new Error('AppImage checksum verification failed. Your installed version was preserved.');
+      send({ phase: 'installing', percent: null });
+      await installScript(mainDirectory, manifestFile, appImageFile);
       const launcher = path.join(os.homedir(), '.local', 'opt', 'cress', 'cress-desktop');
       if (!fs.statSync(launcher).isFile()) throw new Error('The updated launcher was not found');
-      send('Update installed. Restarting Cress…');
+      send({ phase: 'restarting', percent: 100 });
       app.relaunch({ execPath: launcher, args: [] });
       app.quit();
       return { status: 'restarting' };
+    } catch (error) {
+      await dialog.showMessageBox(window, {
+        type: 'error', title: 'Cress update failed', message: 'Cress could not be updated',
+        detail: (error instanceof Error ? error.message : String(error)) + '\n\nYour previous installation was preserved.',
+        buttons: ['OK'], noLink: true
+      });
+      return { status: 'failed' };
     } finally {
       installing = false;
       if (directory) fs.rmSync(directory, { recursive: true, force: true });
@@ -164,4 +241,4 @@ function createUpdater({ app, dialog, shell, getWindow, isBusy, mainDirectory })
   }
   return { check, install };
 }
-module.exports = { createUpdater, compareVersions, parseManifest };
+module.exports = { createUpdater, compareVersions, parseManifest, downloadPercent };

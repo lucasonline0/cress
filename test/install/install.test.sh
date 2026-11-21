@@ -61,4 +61,13 @@ fi
 write_manifest 0.2.3 "$sha"
 CRESS_UPDATER_MANIFEST_FILE="$TEST_MANIFEST" bash "$root/scripts/install.sh"
 [ -e "$base/current/Cress.AppImage" ]
-printf 'Installer checks passed: clean install, pipe, repeat, update, failure preservation, architecture and launcher.\n'
+# The desktop updater downloads once and passes a verified local AppImage to the installer.
+write_manifest 0.2.4 "$sha"
+CRESS_UPDATER_APPIMAGE_FILE="$TEST_BINARY" CRESS_UPDATER_MANIFEST_FILE="$TEST_MANIFEST" TEST_FAIL='https://github.com/lucasonline0/cress/releases/download/v0.2.4/Cress.AppImage' bash "$root/scripts/install.sh"
+[ -e "$base/current/Cress.AppImage" ]
+previous=$(readlink "$base/current")
+write_manifest 0.2.5 "$sha"
+printf 'tampered binary\n' > "$tmp/bad-image"
+if CRESS_UPDATER_APPIMAGE_FILE="$tmp/bad-image" CRESS_UPDATER_MANIFEST_FILE="$TEST_MANIFEST" bash "$root/scripts/install.sh" > /dev/null 2>&1; then echo 'tampered local download accepted' >&2; exit 1; fi
+[ "$(readlink "$base/current")" = "$previous" ]
+printf 'Installer checks passed: clean install, pipe, repeat, update, failure preservation, architecture and verified local update.\n'

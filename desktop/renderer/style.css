@@ -44,10 +44,50 @@ main { flex: 1; min-width: 0; overflow-y: auto; overflow-x: hidden; background: 
 .topbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: 20px; }
 .local-indicator { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); white-space: nowrap; }
 .local-indicator::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #8b928b; }
-.update-button { display: inline-flex; align-items: center; gap: 9px; padding: 9px 13px; font-size: 12px; font-weight: 600; background: var(--surface); white-space: nowrap; }
-.update-button > span { font-size: 16px; line-height: .8; font-weight: 700; }
-.update-available { color: var(--inverse); border-color: var(--strong); background: var(--strong); }
-.update-available:hover { background: var(--muted-strong); border-color: var(--muted-strong); }
+/* Available releases are an unobtrusive amber icon; downloads show real byte progress. */
+.update-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 37px;
+  height: 37px;
+  padding: 7px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #e0ad3e;
+  flex: none;
+}
+.update-icon svg { width: 21px; height: 21px; }
+.update-icon:hover { color: #f1c75d; background: #ddac3d13; border-color: #c89d4629; }
+.update-icon:disabled { opacity: .65; }
+.update-progress {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 37px;
+  height: 37px;
+  padding: 5px;
+  border-radius: 9px;
+  color: #e0ad3e;
+}
+.update-progress svg {
+  width: 27px;
+  height: 27px;
+  fill: none;
+  stroke-width: 3;
+  transform: rotate(-90deg);
+}
+.update-track { stroke: #8b744c55; }
+.update-arc {
+  stroke: currentColor;
+  stroke-linecap: round;
+  transition: stroke-dashoffset .16s linear;
+}
+.update-indeterminate .update-arc { animation: cress-update-spin 1.05s linear infinite; transform-origin: 50% 50%; }
+@keyframes cress-update-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 .main-content { max-width: 1500px; padding: 46px 48px 80px; margin: 0 auto; }
 .main-content > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; margin: 0 0 36px; }
 .main-content > header h1 { margin: 6px 0 6px; font-size: clamp(26px, 2.5vw, 35px); font-weight: 690; letter-spacing: -.055em; line-height: 1.12; }
@@ -92,8 +132,6 @@ input::placeholder { color: var(--muted); }
 .declaration b { font-size: 12px; }
 .declaration p { margin: 6px 0 10px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
 .error { margin: 22px 0; padding: 15px 18px; border: 1px solid #b06b64; border-radius: 8px; color: #b04c47; }
-.update-notice { display: flex; align-items: center; justify-content: space-between; margin: 0 0 22px; padding: 12px 16px; font-size: 12px; color: var(--muted-strong); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
-.update-notice button { background: transparent; border: none; padding: 0 4px; color: var(--muted); font-size: 21px; line-height: 1; }
 .welcome { max-width: 670px; margin: max(11vh, 45px) auto; text-align: center; }
 .welcome img { width: 84px; height: 100px; object-fit: contain; }
 .welcome h1 { margin: 20px 0 13px; color: var(--text); font-size: clamp(34px, 3.6vw, 54px); letter-spacing: -.065em; line-height: 1.08; }
@@ -141,5 +179,7 @@ input::placeholder { color: var(--muted); }
   .error { border-color: #815552; color: #e8a09b; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .update-indeterminate .update-arc { animation-duration: 3s; }
+  .update-arc { transition: none; }
   *, *::before, *::after { transition-duration: 0s !important; scroll-behavior: auto !important; }
 }
