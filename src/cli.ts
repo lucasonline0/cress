@@ -6,6 +6,8 @@ import { formatProject, formatProjectDiff } from './multiframework/format.js';
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { loadPolicies, evaluatePolicies } from './multiframework/policies.js';
+import { detectTestRunners } from './multiframework/test-runner.js';
+import type { TestRunner } from './multiframework/experience.js';
 import { coverage, compareOpenApi, generateTest } from './multiframework/experience.js';
 import { loadMatrix } from './multiframework/matrix-store.js';
 import { readFileSync } from 'node:fs';
@@ -68,13 +70,13 @@ program.command('report').description('Write an offline HTML authorization compa
 program.command('coverage').description('Report policy coverage and optionally compare an OpenAPI document.')
   .argument('<path>', 'project directory').option('--openapi <file>', 'local OpenAPI JSON or YAML file')
   .action((inputPath: string, options: {openapi?: string}) => {
-    try { const analysis = analyzeProject(inputPath); const report = coverage(analysis, loadPolicies(inputPath), loadMatrix(inputPath)); const drift = options.openapi ? compareOpenApi(readFileSync(options.openapi, 'utf8'), analysis) : undefined; process.stdout.write(`${JSON.stringify({ coverage: report, drift }, null, 2)}\n`); }
+    try { const analysis = analyzeProject(inputPath); const report = coverage(analysis, loadPolicies(inputPath), loadMatrix(inputPath)); const drift = options.openapi ? compareOpenApi(readFileSync(options.openapi, 'utf8'), analysis, loadMatrix(inputPath)) : undefined; process.stdout.write(`${JSON.stringify({ coverage: report, drift }, null, 2)}\n`); }
     catch (error) { console.error(error instanceof Error ? error.message : String(error)); process.exitCode = 1; }
   });
 program.command('generate-test').description('Generate an editable authorization test template.')
-  .argument('<path>', 'project directory').requiredOption('--application <root>', 'application root').requiredOption('--framework <name>', 'framework').requiredOption('--method <method>', 'HTTP method').requiredOption('--route <path>', 'route path')
-  .action((inputPath: string, options: { application: string; framework: string; method: string; route: string }) => {
-    try { const analysis = analyzeProject(inputPath); const routes = analysis.routes.filter(r => r.application === options.application && r.framework === options.framework && r.method === options.method && r.path === options.route); if (routes.length !== 1) throw new Error('Route identity is missing or ambiguous.'); const route = routes[0]!; const entry = loadMatrix(inputPath).entries.find(e => e.application === route.application && e.framework === route.framework && e.method === route.method && e.path === route.path); process.stdout.write(generateTest(route, [{ profile: 'Unauthenticated', access: 'deny' }, ...(entry?.expectations ?? [])])); }
+  .argument('<path>', 'project directory').requiredOption('--application <root>', 'application root').requiredOption('--framework <name>', 'framework').requiredOption('--method <method>', 'HTTP method').requiredOption('--route <path>', 'route path').option('--runner <name>', 'jest or vitest')
+  .action((inputPath: string, options: { application: string; framework: string; method: string; route: string; runner?: string }) => {
+    try { const analysis = analyzeProject(inputPath); const routes = analysis.routes.filter(r => r.application === options.application && r.framework === options.framework && r.method === options.method && r.path === options.route); if (routes.length !== 1) throw new Error('Route identity is missing or ambiguous.'); const route = routes[0]!; const entry = loadMatrix(inputPath).entries.find(e => e.application === route.application && e.framework === route.framework && e.method === route.method && e.path === route.path); const detected = route.framework === 'go-chi' ? [] : detectTestRunners(inputPath, route.application); const runner = options.runner ?? (detected.length === 1 ? detected[0] : route.framework === 'go-chi' ? 'jest' : undefined); if (runner !== 'jest' && runner !== 'vitest') throw new Error('Choose --runner jest or vitest when detection is ambiguous or unavailable.'); process.stdout.write(generateTest(route, [{ profile: 'Unauthenticated', access: 'deny' }, ...(entry?.expectations ?? [])], runner as TestRunner)); }
     catch (error) { console.error(error instanceof Error ? error.message : String(error)); process.exitCode = 1; }
   });
 program.parse();

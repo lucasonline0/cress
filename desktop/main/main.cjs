@@ -70,7 +70,8 @@ app.whenReady().then(() => {
   ipcMain.handle('experience:load', event => experience(event, { operation: 'loadMatrix' }));
   ipcMain.handle('experience:save', (event, matrix) => experience(event, { operation: 'saveMatrix', matrix }));
   ipcMain.handle('experience:coverage', event => experience(event, { operation: 'coverage' }));
-  ipcMain.handle('experience:generate', (event, index, scenarios) => { if (!Number.isSafeInteger(index) || index < 0 || !Array.isArray(scenarios) || scenarios.length > 100) throw new Error('Invalid test configuration'); return experience(event, { operation: 'generate', routeIndex: index, scenarios }); });
+  ipcMain.handle('experience:detectRunner', (event, index) => { if (!Number.isSafeInteger(index) || index < 0) throw new Error('Invalid route'); return experience(event, { operation: 'detectRunner', routeIndex: index }); });
+  ipcMain.handle('experience:generate', (event, index, scenarios, runner) => { if (!Number.isSafeInteger(index) || index < 0 || !Array.isArray(scenarios) || scenarios.length > 100 || !['jest', 'vitest'].includes(runner)) throw new Error('Invalid test configuration'); return experience(event, { operation: 'generate', routeIndex: index, scenarios, runner }); });
   ipcMain.handle('experience:openapi', async event => {
     requireSender(event); if (!selected) throw new Error('Select a project first');
     const result = await dialog.showOpenDialog(window, { properties: ['openFile'], filters: [{ name: 'OpenAPI', extensions: ['json', 'yaml', 'yml'] }] });

@@ -183,3 +183,7 @@ input::placeholder { color: var(--muted); }
   .update-arc { transition: none; }
   *, *::before, *::after { transition-duration: 0s !important; scroll-behavior: auto !important; }
 }
+.matrix-scroll { overflow-x: auto; margin: 1rem 0; }
+.matrix-scroll table { border-collapse: collapse; width: 100%; text-align: left; }
+.matrix-scroll th, .matrix-scroll td { border-bottom: 1px solid #ddd; padding: .6rem; vertical-align: top; }
+.matrix-scroll small { display: block; margin-top: .4rem; }
