@@ -18,7 +18,7 @@ Cress discovers applications from package manifests and Go modules, and can find
 
 - **NestJS:** literal controller and HTTP method decorators, guards, roles, public markers and observed global guard or metadata declarations. Dynamic expressions and custom semantics require review.
 - **Next.js:** App Router `app/api/**/route` and Pages Router `pages/api/**` files, including supported JavaScript and TypeScript extensions and dynamic segments. Pages Router methods are unresolved except for supported explicit switch cases with a rejecting default. Authorization-related calls and middleware matcher declarations are observations, not proof of enforcement. Middleware applicability, indirect exports and runtime behavior are not fully resolved.
-- **Go/Chi:** direct router registrations and lexically nested route groups, middleware, and route-local `With` chains. Same-function named mounts are recognized; dynamic registrations, other mounts, router aliases, cross-file construction and custom middleware behavior may be unresolved. Go itself is not required to run Cress.
+- **Go/Chi:** direct router registrations and lexically nested route groups, middleware, and route-local `With` chains. Same-function named mounts and direct router-parameter helpers within the local Go module are recognized; dynamic registrations, other mounts, router aliases, indirect cross-package construction and custom middleware behavior may be unresolved. Go itself is not required to run Cress.
 
 Git comparison uses local Git tree contents and the working tree. It does not check out or fetch a revision. Route moves, duplicate identities and dynamic constructs may be ambiguous; review source references. Reports are offline and do not establish runtime access.
 

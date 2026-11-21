@@ -38,7 +38,7 @@ export function analyzeProjectSources(root: string, files: ProjectFile[], inputW
   const globalDeclarations: ProjectAnalysis['globalDeclarations'] = other.globalObservations.map(o => ({ application: o.application, framework: 'nextjs', declaration: { kind: 'middleware observation', scope: 'global', expression: o.expression, source: { file: o.file, line: o.line }, semantics: 'UNKNOWN' } }));
   const warnings = [...inputWarnings, ...other.warnings];
   if (applications.some(a => a.framework === 'nextjs')) warnings.push('Next.js middleware matchers, indirect exports, and runtime authorization are not fully analyzed.');
-  if (applications.some(a => a.framework === 'go-chi')) warnings.push('Chi mounts, indirect router construction, cross-file registrations, and runtime authorization may be unresolved.');
+  if (applications.some(a => a.framework === 'go-chi')) warnings.push('Chi mounts, indirect router construction, cross-package registrations, build constraints, and runtime authorization may be unresolved.');
   const nestApps = applications.filter(app => app.framework === 'nestjs');
   // Existing users can scan controller directories without a package manifest.
   if (!nestApps.length) nestApps.push({ framework: 'nestjs', root: '.' });

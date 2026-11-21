@@ -1,5 +1,5 @@
 import { detectApplicationsFromFiles, readProjectFiles, type Application, type Framework, type ProjectFile } from './detection.js';
-import { analyzeChiSource } from './chi.js';
+import { analyzeChiSource, indexChiHelpers, type ChiHelperIndex } from './chi.js';
 import { analyzeNextSource, analyzeNextMiddleware } from './next.js';
 
 export interface ObservedRoute {
@@ -8,10 +8,10 @@ export interface ObservedRoute {
   declarations: Array<{ expression: string; source: { file: string; line: number }; semantics: 'UNKNOWN' }>;
 }
 export interface AdapterResult { routes: ObservedRoute[]; warnings: string[] }
-export interface FrameworkAdapter { framework: Framework; analyze(file: string, localFile: string, content: string, application: Application): AdapterResult }
-const chi: FrameworkAdapter = { framework: 'go-chi', analyze(file, _local, content, application) {
-  const result = analyzeChiSource(file, content);
-  return { warnings: result.warnings, routes: result.routes.map(route => ({ framework: 'go-chi', application: application.root, method: route.method, path: route.path, handler: route.handler, source: { file, line: route.line }, declarations: route.middleware.map(m => ({ expression: m.expression, source: { file: m.file, line: m.line }, semantics: 'UNKNOWN' })) })) };
+export interface FrameworkAdapter { framework: Framework; analyze(file: string, localFile: string, content: string, application: Application, helpers?: ChiHelperIndex): AdapterResult }
+const chi: FrameworkAdapter = { framework: 'go-chi', analyze(file, _local, content, application, helpers) {
+  const result = analyzeChiSource(file, content, helpers);
+  return { warnings: result.warnings, routes: result.routes.map(route => ({ framework: 'go-chi', application: application.root, method: route.method, path: route.path, handler: route.handler, source: { file: route.file, line: route.line }, declarations: route.middleware.map(m => ({ expression: m.expression, source: { file: m.file, line: m.line }, semantics: 'UNKNOWN' })) })) };
 } };
 const next: FrameworkAdapter = { framework: 'nextjs', analyze(file, local, content, application) {
   const result = analyzeNextSource(local, content);
@@ -24,16 +24,16 @@ export function scanFrameworkSources(files: ProjectFile[]): { applications: Appl
   for (const application of applications) {
     const adapter = [chi, next].find(a => a.framework === application.framework);
     if (!adapter) continue;
-    for (const source of files) {
-      const prefix = application.root === '.' ? '' : `${application.root}/`;
-      if (!source.file.startsWith(prefix)) continue;
+    const prefix = application.root === '.' ? '' : `${application.root}/`;
+    const inApplication = files.filter(source => source.file.startsWith(prefix) && !applications.some(other => other.root !== application.root && other.root !== '.' && source.file.startsWith(`${other.root}/`) && (application.root === '.' || other.root.startsWith(`${application.root}/`))));
+    const helpers = application.framework === 'go-chi' ? indexChiHelpers(inApplication, application.root) : undefined;
+    for (const source of inApplication) {
       const local = source.file.slice(prefix.length);
-      if (applications.some(other => other.root !== application.root && other.root !== '.' && source.file.startsWith(`${other.root}/`) && (application.root === '.' || other.root.startsWith(`${application.root}/`)))) continue;
       const valid = application.framework === 'go-chi' ? local.endsWith('.go') && !local.endsWith('_test.go') : /\.(?:ts|tsx|js|jsx)$/.test(local);
       if (!valid) continue;
       try {
         if (application.framework === 'nextjs') globalObservations.push(...analyzeNextMiddleware(local, source.content).map(observation => ({ ...observation, file: source.file, application: application.root })));
-        const result = adapter.analyze(source.file, local, source.content, application); routes.push(...result.routes); warnings.push(...result.warnings);
+        const result = adapter.analyze(source.file, local, source.content, application, helpers); routes.push(...result.routes); warnings.push(...result.warnings);
       }
       catch (error) { warnings.push(`Could not analyze ${source.file}: ${error instanceof Error ? error.message : String(error)}`); }
     }
