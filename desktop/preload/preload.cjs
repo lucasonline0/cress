@@ -5,6 +5,12 @@ contextBridge.exposeInMainWorld('cress', Object.freeze({
   scan: project => ipcRenderer.invoke('project:scan', project),
   compare: base => ipcRenderer.invoke('project:compare', base),
   exportResult: kind => ipcRenderer.invoke('project:export', kind),
+  loadMatrix: () => ipcRenderer.invoke('experience:load'),
+  saveMatrix: matrix => ipcRenderer.invoke('experience:save', matrix),
+  coverage: () => ipcRenderer.invoke('experience:coverage'),
+  importOpenApi: () => ipcRenderer.invoke('experience:openapi'),
+  generateTest: (index, scenarios) => ipcRenderer.invoke('experience:generate', index, scenarios),
+  exportText: (content, extension) => ipcRenderer.invoke('experience:export', content, extension),
   checkUpdate: () => ipcRenderer.invoke('updates:check'),
   installUpdate: () => ipcRenderer.invoke('updates:install'),
   onUpdateProgress: callback => {
