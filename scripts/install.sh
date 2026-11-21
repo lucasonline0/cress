@@ -5,7 +5,7 @@ set -euo pipefail
 fail() { printf 'Cress: %s\n' "$*" >&2; exit 1; }
 [ "$(uname -s)" = Linux ] || fail 'Only Linux is supported by this installer.'
 [ "$(uname -m)" = x86_64 ] || fail 'Only Linux x86_64 is supported.'
-for tool in curl sha256sum mktemp mv ln mkdir chmod readlink grep rm; do command -v "$tool" >/dev/null 2>&1 || fail "Required command not found: $tool"; done
+for tool in curl sha256sum mktemp mv ln mkdir chmod readlink grep rm cp; do command -v "$tool" >/dev/null 2>&1 || fail "Required command not found: $tool"; done
 case "${HOME:-}" in /*) ;; *) fail 'HOME must be an absolute directory.';; esac
 case "$HOME${XDG_DATA_HOME:-}" in *$'\n'*|*$'\r'*) fail 'Directory paths containing newlines are not supported.';; esac
 
@@ -24,7 +24,12 @@ stage=$(mktemp -d "$base/.install.XXXXXXXX") || fail 'Cannot create a temporary 
 cleanup() { if [ -n "${stage:-}" ] && [ -d "$stage" ]; then rm -rf -- "$stage"; fi; }
 trap cleanup EXIT
 fetch() { curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --max-time 600 "$1" --output "$2" || fail "Download failed: $1"; }
-fetch "$manifest_url" "$stage/manifest"
+if [ -n "${CRESS_UPDATER_MANIFEST_FILE:-}" ]; then
+  [ -f "$CRESS_UPDATER_MANIFEST_FILE" ] && [ -r "$CRESS_UPDATER_MANIFEST_FILE" ] || fail 'The local update manifest cannot be read.'
+  cp -- "$CRESS_UPDATER_MANIFEST_FILE" "$stage/manifest"
+else
+  fetch "$manifest_url" "$stage/manifest"
+fi
 status= version= url= sha256=
 while IFS='=' read -r key value || [ -n "$key" ]; do
   case "$key" in
