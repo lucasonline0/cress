@@ -73,3 +73,33 @@ node dist/cli.js report path/to/project --base main --output report.html
 ```
 
 See `--help` for command options. Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). MIT licensed.
+
+### Expected access review in CI
+
+Add a `.cress.json` at the project root. Policies match an exact framework, method, and route path; add `application` when multiple applications expose the same route. Each required declaration is matched as a source expression or identifier in the route's observed declarations.
+
+```json
+{
+  "policies": [{
+    "framework": "go-chi",
+    "method": "POST",
+    "path": "/v1/admin/users",
+    "requiredDeclarations": ["requireRuntimeAdminAuth"]
+  }]
+}
+```
+
+Run `cress check . --base main`, or add `--format json` for machine-readable output. `PASS` means all declarations were observed, not that runtime access is proven. `REVIEW_REQUIRED` means an expected declaration observed at the baseline is no longer observed on the matching route. `UNKNOWN` means the route or declaration could not be established with sufficient coverage. Other authorization may exist. Exit codes: `0` for no verified divergence (including unknowns), `3` for a review-required divergence, `1` for an analysis, Git or configuration error, and `2` for invalid command options.
+
+Example GitHub Actions step (ensure the base branch is fetched):
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 0
+- uses: actions/setup-node@v4
+  with:
+    node-version: 22
+- run: npm ci && npm run build
+- run: node dist/cli.js check . --base origin/main
+```

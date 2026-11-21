@@ -8,7 +8,10 @@ export interface ProjectChange {
   before: { expression: string | null; source: { file: string; line: number } } | null;
   after: { expression: string | null; source: { file: string; line: number } } | null;
   review: string;
+  declarationKind?: string;
+  affectedRoutes?: Array<{ method: string; path: string | null; source: ProjectRoute['source'] }>;
 }
+
 export interface ProjectDiff { schemaVersion: 2; root: string; base: string; changes: ProjectChange[]; warnings: string[] }
 function identity(route: ProjectRoute): string { return JSON.stringify([route.framework, route.application, route.method, route.path]); }
 function entry(declaration: ProjectDeclaration) { return { expression: declaration.expression, source: declaration.source }; }
@@ -22,7 +25,7 @@ export function compareProjectAnalyses(before: ProjectAnalysis, after: ProjectAn
   const old = groups(before.routes); const current = groups(after.routes); const changes: ProjectChange[] = [];
   for (const key of [...new Set([...old.keys(), ...current.keys()])].sort()) {
     const a = old.get(key) ?? []; const b = current.get(key) ?? []; const route = b[0] ?? a[0]; if (!route) continue;
-    const make = (type: ProjectChange['type'], left: ProjectChange['before'], right: ProjectChange['after'], review: string) => changes.push({ type, framework: route.framework, application: route.application, method: route.method, path: route.path, before: left, after: right, review });
+    const make = (type: ProjectChange['type'], left: ProjectChange['before'], right: ProjectChange['after'], review: string, declarationKind?: string) => changes.push({ type, framework: route.framework, application: route.application, method: route.method, path: route.path, before: left, after: right, review, ...(declarationKind ? { declarationKind } : {}) });
     if (a.length > 1 || b.length > 1 || route.path === null || route.method === 'UNRESOLVED') {
       const signature = (items: ProjectRoute[]) => items.map(item => JSON.stringify([item.source.file, item.handler, item.nestjs?.controllerPathExpression, item.nestjs?.handlerPathExpression, item.declarations.map(d => [d.scope, d.kind, d.expression])])).sort();
       if (JSON.stringify(signature(a)) === JSON.stringify(signature(b))) continue;
@@ -38,10 +41,10 @@ export function compareProjectAnalyses(before: ProjectAnalysis, after: ProjectAn
     const removed = oldDeclarations.filter(d => !newKeys.includes(keyFor(d)));
     const added = newDeclarations.filter(d => !oldKeys.includes(keyFor(d)));
     if (removed.length === 1 && added.length === 1 && removed[0]!.kind === added[0]!.kind && removed[0]!.scope === added[0]!.scope) {
-      make('DECLARATION_MODIFIED', entry(removed[0]!), entry(added[0]!), 'A source declaration changed. Its runtime effect is unknown.');
+      make('DECLARATION_MODIFIED', entry(removed[0]!), entry(added[0]!), 'A source declaration changed. Its runtime effect is unknown.', removed[0]!.kind);
     } else {
-      for (const d of removed) make('DECLARATION_REMOVED', entry(d), null, 'A source declaration was removed or changed. Its runtime effect is unknown.');
-      for (const d of added) make('DECLARATION_ADDED', null, entry(d), 'A source declaration was added or changed. Its runtime effect is unknown.');
+      for (const d of removed) make('DECLARATION_REMOVED', entry(d), null, 'A source declaration was removed or changed. Its runtime effect is unknown.', d.kind);
+      for (const d of added) make('DECLARATION_ADDED', null, entry(d), 'A source declaration was added or changed. Its runtime effect is unknown.', d.kind);
     }
     if (oldKeys.every(key => newKeys.includes(key)) && newKeys.every(key => oldKeys.includes(key))) make('UNRESOLVED_CHANGE', routeEntry(a[0]), routeEntry(b[0]), 'Declaration order or multiplicity changed; review the source.');
   }
@@ -58,6 +61,11 @@ export function compareProjectAnalyses(before: ProjectAnalysis, after: ProjectAn
       changes.push({ type: 'UNRESOLVED_CHANGE', application: left.application, framework: left.framework, method: 'GLOBAL', path: null, before: entry(left.declaration), after: entry(right.declaration), review: 'Repeated global declarations changed in number; their identities and runtime effects require review.' });
     }
   }
+  for (const change of changes) if (change.method === 'GLOBAL') {
+    change.affectedRoutes = after.routes.filter(r => r.framework === change.framework && r.application === change.application).map(r => ({ method: r.method, path: r.path, source: r.source }));
+  }
+  const priority: Record<ProjectChange['type'], number> = { DECLARATION_REMOVED: 0, DECLARATION_MODIFIED: 1, UNRESOLVED_CHANGE: 2, ROUTE_REMOVED: 3, ROUTE_ADDED: 4, DECLARATION_ADDED: 5 };
+  changes.sort((a, b) => priority[a.type] - priority[b.type]);
   return { schemaVersion: 2, root: after.root, base, changes, warnings: [...new Set([...before.warnings.map(w => `Baseline: ${w}`), ...after.warnings.map(w => `Working tree: ${w}`), 'Route moves and unsupported constructs require manual review.'])].sort() };
 }
 export function compareProject(inputPath: string, base: string): { before: ProjectAnalysis; after: ProjectAnalysis; diff: ProjectDiff } {

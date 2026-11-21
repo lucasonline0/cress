@@ -45,7 +45,7 @@ app.whenReady().then(() => {
     if (typeof base !== 'string' || !base.trim() || base.length > 256 || base.includes('\0')) throw new Error('Enter a valid Git reference');
     if (busy) throw new Error('An operation is already running');
     busy = true;
-    try { reportResult = await runWorker({ project: selected, base: base.trim() }); return reportResult.diff; } finally { busy = false; }
+    try { reportResult = await runWorker({ project: selected, base: base.trim() }); return { diff: reportResult.diff, policies: reportResult.policies }; } finally { busy = false; }
   });
   ipcMain.handle('project:export', async (event, kind) => {
     requireSender(event);

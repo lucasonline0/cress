@@ -24,6 +24,11 @@ describe('multi-framework CLI', () => {
       expect(scan.routes.map((r: { framework: string }) => r.framework)).toEqual(['go-chi', 'nextjs']);
       const diff = JSON.parse(cli('diff', root, '--base', 'HEAD', '--format', 'json'));
       expect(diff.changes[0].type).toBe('DECLARATION_MODIFIED');
+      writeFileSync(path.join(root, '.cress.json'), JSON.stringify({ policies: [{ framework: 'go-chi', method: 'GET', path: '/test', requiredDeclarations: ['oldGuard'] }] }));
+      try { cli('check', root, '--base', 'HEAD', '--format', 'json'); throw new Error('Expected a review-required exit'); }
+      catch (error) { const result = error as { status?: number; stdout?: string }; expect(result.status).toBe(3); expect(JSON.parse(result.stdout ?? '{}').policies[0].status).toBe('REVIEW_REQUIRED'); }
+      writeFileSync(path.join(root, '.cress.json'), JSON.stringify({ policies: [{ framework: 'go-chi', method: 'GET', path: '/test', requiredDeclarations: ['neverSeen'] }] }));
+      expect(JSON.parse(cli('check', root, '--base', 'HEAD', '--format', 'json')).policies[0].status).toBe('UNKNOWN');
       const output = path.join(parent, 'report.html');
       cli('report', root, '--base', 'HEAD', '--output', output);
       const html = readFileSync(output, 'utf8'); expect(html).toContain('go-chi'); expect(html).toContain('newGuard');
