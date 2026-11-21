@@ -65,3 +65,18 @@ it('preserves a trailing slash on a route within a prefix', () => {
   const source = 'package main\nimport "github.com/go-chi/chi/v5"\nfunc f(){r:=chi.NewRouter();r.Route("/v1",func(x chi.Router){x.Get("/",handler)})}';
   expect(analyzeChiSource('routes.go', source).routes[0]?.path).toBe('/v1/');
 });
+
+it('recognizes method and generic handler registration forms', () => {
+  const source = `package main
+import "github.com/go-chi/chi/v5"
+func f() {
+ r:=chi.NewRouter()
+ r.Method("PATCH", "/a", handler)
+ r.MethodFunc(http.MethodHead, "/b", handler)
+ r.Handle("/c", handler)
+ r.HandleFunc("/d", handler)
+}`;
+  expect(analyzeChiSource('routes.go', source).routes.map(r => [r.method, r.path])).toEqual([
+    ['PATCH', '/a'], ['HEAD', '/b'], ['ANY', '/c'], ['ANY', '/d'],
+  ]);
+});

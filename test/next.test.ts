@@ -35,3 +35,10 @@ it('warns when route source is malformed', () => {
   const result = analyzeNextSource('app/api/x/route.ts', 'export function GET( {');
   expect(result.warnings.some(w => w.includes('malformed source'))).toBe(true);
 });
+
+it('recognizes locally aliased App Router exports without treating normal pages as APIs', () => {
+  const result = analyzeNextSource('src/app/api/[...slug]/route.ts', 'function handler() { return auth() } export { handler as GET };');
+  expect(result.routes.map(r => [r.method, r.path])).toEqual([['GET', '/api/[...slug]']]);
+  expect(result.routes[0]?.observations[0]?.expression).toBe('auth()');
+  expect(analyzeNextSource('src/app/settings/page.tsx', 'export function GET() {}').routes).toHaveLength(0);
+});
