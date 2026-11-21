@@ -29,6 +29,7 @@ const { execFileSync } = require('node:child_process');
     await w.getByRole('button', { name: 'Save matrix' }).click();
     await w.getByText('Matrix saved.').waitFor();
     await w.getByRole('button', { name: 'Test Studio' }).click();
+    await w.getByText('No runner detected; choose one available in your project.').waitFor();
     await w.getByLabel('Test runner').selectOption('jest');
     await w.getByLabel('Add own and third-party resource scenarios').check();
     await w.getByLabel('Resource scenario profile').selectOption('ADMIN');
