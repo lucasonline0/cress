@@ -24,3 +24,14 @@ it('identifies explicit method cases only with a rejecting default', () => {
   expect(analyzeNextSource('pages/api/items.ts', source).routes.map(r => r.method)).toEqual(['GET', 'POST']);
   expect(analyzeNextSource('pages/api/items.ts', source.replace('return res.status(405).end();', 'return res.end();')).routes[0]?.method).toBe('UNRESOLVED');
 });
+
+it('leaves intercepted routes unresolved instead of inventing a path', () => {
+  const result = analyzeNextSource('app/api/(.)users/route.ts', 'export function GET() {}');
+  expect(result.routes[0]?.path).toBeNull();
+  expect(result.warnings).toContain('app/api/(.)users/route.ts: parallel or intercepted routes require review.');
+});
+
+it('warns when route source is malformed', () => {
+  const result = analyzeNextSource('app/api/x/route.ts', 'export function GET( {');
+  expect(result.warnings.some(w => w.includes('malformed source'))).toBe(true);
+});

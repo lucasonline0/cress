@@ -24,7 +24,7 @@ export function compareProjectAnalyses(before: ProjectAnalysis, after: ProjectAn
     const a = old.get(key) ?? []; const b = current.get(key) ?? []; const route = b[0] ?? a[0]; if (!route) continue;
     const make = (type: ProjectChange['type'], left: ProjectChange['before'], right: ProjectChange['after'], review: string) => changes.push({ type, framework: route.framework, application: route.application, method: route.method, path: route.path, before: left, after: right, review });
     if (a.length > 1 || b.length > 1 || route.path === null || route.method === 'UNRESOLVED') {
-      const signature = (items: ProjectRoute[]) => items.map(item => JSON.stringify([item.handler, item.nestjs?.controllerPathExpression, item.nestjs?.handlerPathExpression, item.declarations.map(d => [d.scope, d.kind, d.expression])])).sort();
+      const signature = (items: ProjectRoute[]) => items.map(item => JSON.stringify([item.source.file, item.handler, item.nestjs?.controllerPathExpression, item.nestjs?.handlerPathExpression, item.declarations.map(d => [d.scope, d.kind, d.expression])])).sort();
       if (JSON.stringify(signature(a)) === JSON.stringify(signature(b))) continue;
       make('UNRESOLVED_CHANGE', a[0] ? routeEntry(a[0]) : null, b[0] ? routeEntry(b[0]) : null, 'The route identity is ambiguous or unresolved and requires review.'); continue;
     }

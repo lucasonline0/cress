@@ -3,7 +3,7 @@ import { analyzeChiSource } from './chi.js';
 import { analyzeNextSource, analyzeNextMiddleware } from './next.js';
 
 export interface ObservedRoute {
-  framework: Framework; application: string; method: string; path: string; handler: string;
+  framework: Framework; application: string; method: string; path: string | null; handler: string;
   source: { file: string; line: number };
   declarations: Array<{ expression: string; source: { file: string; line: number }; semantics: 'UNKNOWN' }>;
 }

@@ -33,7 +33,7 @@ export function analyzeProjectSources(root: string, files: ProjectFile[], inputW
   const routes: ProjectRoute[] = other.routes.map(route => ({
     framework: route.framework, application: route.application, method: route.method, path: route.path, handler: route.handler,
     source: route.source, declarations: route.declarations.map(declaration => ({ kind: route.framework === 'go-chi' ? 'middleware' : 'helper call', scope: 'unknown', ...declaration })),
-    status: route.method === 'UNRESOLVED' ? 'UNRESOLVED' : 'REQUIRES_REVIEW', warnings: ['Observed declarations do not establish effective authorization.'],
+    status: route.method === 'UNRESOLVED' || route.path === null ? 'UNRESOLVED' : 'REQUIRES_REVIEW', warnings: ['Observed declarations do not establish effective authorization.'],
   }));
   const globalDeclarations: ProjectAnalysis['globalDeclarations'] = other.globalObservations.map(o => ({ application: o.application, framework: 'nextjs', declaration: { kind: 'middleware observation', scope: 'global', expression: o.expression, source: { file: o.file, line: o.line }, semantics: 'UNKNOWN' } }));
   const warnings = [...inputWarnings, ...other.warnings];
