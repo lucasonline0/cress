@@ -1,4 +1,4 @@
-import { parse } from 'yaml';
+import { parseDocument, LineCounter, isMap, isScalar } from 'yaml';
 import type { ProjectAnalysis, ProjectRoute } from './project.js';
 import { evaluatePolicies, type Policy } from './policies.js';
 
@@ -39,19 +39,31 @@ export function coverage(analysis: ProjectAnalysis, policies: Policy[], matrix: 
 }
 const methods = new Set(['get','post','put','patch','delete','head','options','trace']);
 function normalized(path: string): string { return path.replace(/\{([^/{}]+)\}/g, ':$1').replace(/:([A-Za-z0-9_]+)(?=\/|$)/g, ':').replace(/\/$/, '') || '/'; }
-export function compareOpenApi(text: string, analysis: ProjectAnalysis, matrix: AccessMatrix = emptyMatrix()) {
-  const doc: unknown = parse(text, { uniqueKeys: true, maxAliasCount: 50 });
+export function compareOpenApi(text: string, analysis: ProjectAnalysis, matrix: AccessMatrix = emptyMatrix(), sourceFile = 'OpenAPI document') {
+  const lines = new LineCounter();
+  const parsed = parseDocument(text, { uniqueKeys: true, lineCounter: lines });
+  if (parsed.errors.length) throw new Error(`Invalid OpenAPI document: ${parsed.errors[0]!.message}`);
+  const doc: unknown = parsed.toJS({ maxAliasCount: 50 });
+  const pathNodes = parsed.get('paths', true);
+  const findKey = (map: unknown, key: string) => isMap(map) ? map.items.find(pair => isScalar(pair.key) && pair.key.value === key) : undefined;
+  const location = (route: string, method?: string) => {
+    const pathEntry = findKey(pathNodes, route);
+    const operation = method ? findKey(pathEntry?.value, method) : undefined;
+    const key = operation?.key ?? pathEntry?.key;
+    const offset = isScalar(key) ? key.range?.[0] : undefined;
+    return { file: sourceFile, line: offset === undefined ? null : lines.linePos(offset).line };
+  };
   if (!doc || typeof doc !== 'object' || Array.isArray(doc) || typeof (doc as { openapi?: unknown }).openapi !== 'string' || !(doc as { paths?: unknown }).paths || typeof (doc as { paths?: unknown }).paths !== 'object' || Array.isArray((doc as { paths?: unknown }).paths)) throw new Error('Expected an OpenAPI document with paths.');
   const root = doc as { paths: Record<string, unknown>; security?: unknown };
-  const contract: Array<{method: string; path: string; security: boolean; unresolved: boolean}> = [];
+  const contract: Array<{method: string; path: string; security: boolean; unresolved: boolean; source: {file: string; line: number | null}} > = [];
   for (const [route, value] of Object.entries(root.paths)) {
     if (!route.startsWith('/') || !value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`Invalid OpenAPI path: ${route}`);
     const item = value as Record<string, unknown>;
-    if ('$ref' in item) { contract.push({ method: 'UNRESOLVED', path: route, security: false, unresolved: true }); continue; }
+    if ('$ref' in item) { contract.push({ method: 'UNRESOLVED', path: route, security: false, unresolved: true, source: location(route, '$ref') }); continue; }
     for (const [method, operation] of Object.entries(item)) if (methods.has(method.toLowerCase())) {
       if (!operation || typeof operation !== 'object' || Array.isArray(operation)) throw new Error(`Invalid operation: ${method} ${route}`);
       const security = (operation as Record<string, unknown>).security ?? root.security;
-      contract.push({ method: method.toUpperCase(), path: route, security: Array.isArray(security) && security.length > 0, unresolved: false });
+      contract.push({ method: method.toUpperCase(), path: route, security: Array.isArray(security) && security.length > 0, unresolved: false, source: location(route, method) });
     }
   }
   const matched = new Set<ProjectRoute>();

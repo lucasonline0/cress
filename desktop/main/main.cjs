@@ -8,6 +8,7 @@ let selected;
 let busy = false;
 let scanResult;
 let reportResult;
+let openApiSource;
 function validSender(event) { return window && event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame; }
 function requireSender(event) { if (!validSender(event)) throw new Error('Invalid sender'); }
 function selectDirectory(input) {
@@ -29,9 +30,9 @@ app.whenReady().then(() => {
     if (busy) throw new Error('An operation is already running');
     const result = await dialog.showOpenDialog(window, { properties: ['openDirectory'] });
     if (result.canceled || !result.filePaths[0]) return null;
-    selected = selectDirectory(result.filePaths[0]); scanResult = undefined; reportResult = undefined; return selected;
+    selected = selectDirectory(result.filePaths[0]); scanResult = undefined; reportResult = undefined; openApiSource = undefined; return selected;
   });
-  ipcMain.handle('project:example', event => { requireSender(event); if (busy) throw new Error('An operation is already running'); selected = selectDirectory(path.resolve(__dirname, '../../test/fixtures/nest-app/src')); scanResult = undefined; reportResult = undefined; return selected; });
+  ipcMain.handle('project:example', event => { requireSender(event); if (busy) throw new Error('An operation is already running'); selected = selectDirectory(path.resolve(__dirname, '../../test/fixtures/nest-app/src')); scanResult = undefined; reportResult = undefined; openApiSource = undefined; return selected; });
   ipcMain.handle('project:scan', async (event, project) => {
     requireSender(event);
     if (typeof project !== 'string' || !selected || project !== selected || selectDirectory(project) !== selected) throw new Error('Select a project first');
@@ -77,8 +78,11 @@ app.whenReady().then(() => {
     const result = await dialog.showOpenDialog(window, { properties: ['openFile'], filters: [{ name: 'OpenAPI', extensions: ['json', 'yaml', 'yml'] }] });
     if (result.canceled || !result.filePaths[0]) return null;
     const file = result.filePaths[0]; const stat = await fs.promises.stat(file); if (!stat.isFile() || stat.size > 5 * 1024 * 1024) throw new Error('Select an OpenAPI file smaller than 5 MB');
-    return experience(event, { operation: 'coverage', openapi: await fs.promises.readFile(file, 'utf8') });
+    const text = await fs.promises.readFile(file, 'utf8');
+    const report = await experience(event, { operation: 'coverage', openapi: text, openapiFile: file });
+    openApiSource = { file, text }; return report;
   });
+  ipcMain.handle('experience:source', event => { requireSender(event); if (!selected || !openApiSource) throw new Error('Import an OpenAPI document first'); return openApiSource; });
   ipcMain.handle('experience:export', async (event, content, extension) => {
     requireSender(event); if (!selected || typeof content !== 'string' || content.length > 5 * 1024 * 1024 || !['json', 'html', 'ts', 'go'].includes(extension)) throw new Error('Invalid export');
     const result = await dialog.showSaveDialog(window, { defaultPath: `cress-export.${extension}`, filters: [{ name: extension.toUpperCase(), extensions: [extension] }], properties: ['showOverwriteConfirmation'] });

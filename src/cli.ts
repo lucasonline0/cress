@@ -70,7 +70,7 @@ program.command('report').description('Write an offline HTML authorization compa
 program.command('coverage').description('Report policy coverage and optionally compare an OpenAPI document.')
   .argument('<path>', 'project directory').option('--openapi <file>', 'local OpenAPI JSON or YAML file')
   .action((inputPath: string, options: {openapi?: string}) => {
-    try { const analysis = analyzeProject(inputPath); const report = coverage(analysis, loadPolicies(inputPath), loadMatrix(inputPath)); const drift = options.openapi ? compareOpenApi(readFileSync(options.openapi, 'utf8'), analysis, loadMatrix(inputPath)) : undefined; process.stdout.write(`${JSON.stringify({ coverage: report, drift }, null, 2)}\n`); }
+    try { const analysis = analyzeProject(inputPath); const report = coverage(analysis, loadPolicies(inputPath), loadMatrix(inputPath)); const drift = options.openapi ? compareOpenApi(readFileSync(options.openapi, 'utf8'), analysis, loadMatrix(inputPath), path.resolve(options.openapi)) : undefined; process.stdout.write(`${JSON.stringify({ coverage: report, drift }, null, 2)}\n`); }
     catch (error) { console.error(error instanceof Error ? error.message : String(error)); process.exitCode = 1; }
   });
 program.command('generate-test').description('Generate an editable authorization test template.')

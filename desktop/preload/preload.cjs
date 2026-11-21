@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('cress', Object.freeze({
   loadMatrix: () => ipcRenderer.invoke('experience:load'),
   saveMatrix: matrix => ipcRenderer.invoke('experience:save', matrix),
   coverage: () => ipcRenderer.invoke('experience:coverage'),
+  openApiSource: () => ipcRenderer.invoke('experience:source'),
   importOpenApi: () => ipcRenderer.invoke('experience:openapi'),
   detectRunner: index => ipcRenderer.invoke('experience:detectRunner', index),
   generateTest: (index, scenarios, runner) => ipcRenderer.invoke('experience:generate', index, scenarios, runner),

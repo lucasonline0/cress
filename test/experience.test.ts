@@ -47,4 +47,13 @@ describe('access experience', () => {
     const matrix = {profiles: ['USER'], entries: [{framework: 'nextjs' as const, application: '.', method: 'GET', path: '/users/:id', expectations: [{profile: 'USER', access: 'deny' as const}], requiredDeclarations: []}]};
     expect(compareOpenApi('openapi: 3.0.0\npaths:\n  /users/{id}:\n    get: {}', analysis, matrix).findings[0]?.kind).toBe('expectation_review');
   });
+  it('records exact OpenAPI YAML and JSON operation lines', () => {
+    const yaml = 'openapi: 3.0.0\npaths:\n  /users/{id}:\n    get:\n      security:\n        - bearer: []\n  /missing:\n    post: {}\n';
+    const drift = compareOpenApi(yaml, analysis, undefined, '/repo/openapi.yaml');
+    expect(drift.findings.map(f => f.contract.source)).toEqual([{file: '/repo/openapi.yaml', line: 4}, {file: '/repo/openapi.yaml', line: 8}]);
+    const json = '{\n  "openapi": "3.0.0",\n  "paths": {\n    "/users/{id}": {\n      "get": {}\n    }\n  }\n}';
+    expect(compareOpenApi(json, analysis, undefined, 'openapi.json').findings[0]?.contract.source).toEqual({file: 'openapi.json', line: 5});
+    const ref = 'openapi: 3.0.0\npaths:\n  /things:\n    $ref: "#/components/pathItems/Thing"\n';
+    expect(compareOpenApi(ref, analysis).findings[0]?.contract.source.line).toBe(4);
+  });
 });
