@@ -28,7 +28,7 @@ Scan and diff JSON now use `schemaVersion: 2`. Scan output contains `application
 
 ## Install on Linux
 
-The one-command installer is being prepared and is not yet available: an official public release and a verified website deployment are still required. Once available, it will download the Linux x86_64 AppImage, verify its SHA-256 checksum, install it in your user directory and add an application-menu entry. See [Linux installer release preparation](docs/linux-installation.md) for the remaining steps and limitations.
+The one-command installer is being prepared and is not yet available: a website deployment and public installation verification are still required. Once available, it will download the Linux x86_64 AppImage, verify its SHA-256 checksum, install it in your user directory and add an application-menu entry. See [Linux installer release preparation](docs/linux-installation.md) for the remaining steps and limitations.
 
 ## Development
 

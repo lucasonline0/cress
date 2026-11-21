@@ -1,6 +1,6 @@
 # Linux installer release preparation
 
-The installer is not available to users until an official public GitHub Release and a verified website deployment exist. It uses a small HTTPS manifest hosted by the website; `status=unavailable` is intentionally the default. Do not publish a release or enable the manifest without authorization.
+The installer is not available to users until its website deployment and an unauthenticated installation have been verified. The public release contains the AppImage and its SHA-256 checksum. The website manifest identifies that release; update it whenever the stable release changes.
 
 After an authorized release is prepared:
 
