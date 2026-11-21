@@ -1,4 +1,5 @@
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, shell } = require('electron');
+const { createUpdater } = require('./updates.cjs');
 const path = require('node:path');
 const fs = require('node:fs');
 const { Worker } = require('node:worker_threads');
@@ -16,7 +17,11 @@ function selectDirectory(input) {
   return resolved;
 }
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
   window = new BrowserWindow({ icon: path.join(__dirname, '../renderer/icon_app.png'), width: 1280, height: 820, minWidth: 760, minHeight: 540, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  const updater = createUpdater({ app, dialog, shell, getWindow: () => window, isBusy: () => busy, mainDirectory: __dirname });
+  ipcMain.handle('updates:check', event => { requireSender(event); return updater.check(); });
+  ipcMain.handle('updates:install', event => { requireSender(event); return updater.install(); });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());
   ipcMain.handle('project:open', async event => {

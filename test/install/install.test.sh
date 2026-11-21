@@ -58,4 +58,7 @@ if [ -n "${CRESS_TEST_REAL_APPIMAGE:-}" ]; then
   bash "$root/scripts/install.sh"
   env PATH=/tmp/cress-nogo-bin APPIMAGE_EXTRACT_AND_RUN=1 CRESS_PACKAGED_EXECUTABLE="$base/cress-desktop" /usr/bin/node "$CRESS_GUI_TEST"
 fi
+write_manifest 0.2.3 "$sha"
+CRESS_UPDATER_MANIFEST_FILE="$TEST_MANIFEST" bash "$root/scripts/install.sh"
+[ -e "$base/current/Cress.AppImage" ]
 printf 'Installer checks passed: clean install, pipe, repeat, update, failure preservation, architecture and launcher.\n'

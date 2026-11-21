@@ -4,9 +4,9 @@ Cress is a local-first desktop tool for exploring NestJS, Next.js API, and Go/Ch
 
 ![Cress access explorer](docs/screenshots/access-explorer.png)
 
-## Desktop MVP
+## Desktop application
 
-Download the appropriate unsigned package from the artifacts of a successful [GitHub Actions run](https://github.com/lucasonline0/cress/actions). Linux builds produce an AppImage; Windows and macOS builds are attempted in CI. Platform availability depends on the corresponding job succeeding. On Linux, make the AppImage executable (`chmod +x Cress-0.2.0.AppImage`) and launch it. AppImage requires a compatible Linux desktop and FUSE; it can also be extracted with `--appimage-extract`. Unsigned Windows and macOS builds may trigger SmartScreen or Gatekeeper warnings.
+Download the appropriate unsigned package from the artifacts of a successful [GitHub Actions run](https://github.com/lucasonline0/cress/actions). Linux builds produce an AppImage; Windows and macOS builds are attempted in CI. Platform availability depends on the corresponding job succeeding. On Linux, the official one-command installer adds an application-menu entry and handles later AppImage updates. Standalone AppImages can also be launched manually after making them executable. AppImage requires a compatible Linux desktop and FUSE; it can also be extracted with `--appimage-extract`. Unsigned Windows and macOS builds may trigger SmartScreen or Gatekeeper warnings.
 
 Choose **Open a project** and select a project directory. The access explorer searches routes and shows declarations with source locations. In **Git changes**, enter a local branch, tag, or commit and compare it with the working tree. Git must be installed for comparisons; scanning does not require Git. Export scan JSON from the overview, or diff JSON and offline HTML from the changes view. Choose an export destination outside the analyzed project.
 
@@ -28,7 +28,15 @@ Scan and diff JSON now use `schemaVersion: 2`. Scan output contains `application
 
 ## Install on Linux
 
-The one-command installer is being prepared and is not yet available: a website deployment and public installation verification are still required. Once available, it will download the Linux x86_64 AppImage, verify its SHA-256 checksum, install it in your user directory and add an application-menu entry. See [Linux installer release preparation](docs/linux-installation.md) for the remaining steps and limitations.
+On Linux x86_64, use the official installer after confirming the published endpoint:
+
+```sh
+curl -fsSL https://getcress.vercel.app/install.sh | bash
+```
+
+Cress checks official GitHub Releases for updates and verifies the published AppImage SHA-256 before installing. The public website manifest continues to provide the one-command Linux installer with its stable version. When a newer version is published, the top-right **New update** control offers a confirmed, checksum-verified user-local installation and restarts the application. Standalone AppImages can migrate into the managed installation. Windows and macOS builds are currently distributed as unsigned packages; automated installation is not supported there.
+
+For installation details and checksum limitations, see [Linux installation](docs/linux-installation.md).
 
 ## Development
 

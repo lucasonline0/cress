@@ -6,6 +6,8 @@ await build({ entryPoints: ['desktop/main/worker.ts'], bundle: true, platform: '
 await build({ entryPoints: ['src/multiframework/report.ts'], bundle: true, platform: 'node', format: 'cjs', outfile: 'desktop-dist/main/report.cjs' });
 await copyFile('desktop/main/main.cjs', 'desktop-dist/main/main.cjs');
 await copyFile('desktop/preload/preload.cjs', 'desktop-dist/main/preload.cjs');
+await copyFile('desktop/main/updates.cjs', 'desktop-dist/main/updates.cjs');
+await copyFile('scripts/install.sh', 'desktop-dist/main/install.sh');
 await viteBuild({ root: 'desktop/renderer', base: './', build: { outDir: '../../desktop-dist/renderer', emptyOutDir: true } });
 await copyFile('assets/brand/cress-black.png', 'desktop-dist/renderer/cress-black.png');
 await copyFile('assets/brand/icon_app.png', 'desktop-dist/renderer/icon_app.png');
