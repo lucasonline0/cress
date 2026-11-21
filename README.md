@@ -26,6 +26,10 @@ Git comparison uses local Git tree contents and the working tree. It does not ch
 
 Scan and diff JSON now use `schemaVersion: 2`. Scan output contains `applications`, framework-neutral `routes`, `globalDeclarations`, and `warnings`; NestJS-only details appear in each NestJS route's `nestjs` field. Diff output contains framework and application identity alongside before/after source observations. Consumers of version 1 fields such as `findings` must migrate to `routes`. A route's declarations represent source observations rather than effective authorization.
 
+## Install on Linux
+
+The one-command installer is being prepared and is not yet available: a website deployment and public installation verification are still required. Once available, it will download the Linux x86_64 AppImage, verify its SHA-256 checksum, install it in your user directory and add an application-menu entry. See [Linux installer release preparation](docs/linux-installation.md) for the remaining steps and limitations.
+
 ## Development
 
 Requires Git and Node.js 22.12 or later. Electron 45's binary must be installed explicitly after npm installation:

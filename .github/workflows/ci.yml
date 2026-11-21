@@ -22,6 +22,8 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - if: runner.os == 'Linux'
+        run: bash test/install/install.test.sh
       - run: npm run desktop:build
       - if: runner.os == 'Linux'
         run: xvfb-run -a npm run desktop:smoke
