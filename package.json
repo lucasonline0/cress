@@ -74,7 +74,8 @@
         "AppImage"
       ],
       "category": "Development",
-      "icon": "assets/brand/cress-black.png"
+      "icon": "assets/brand/icon_app.png",
+      "syncDesktopName": true
     },
     "win": {
       "target": [
@@ -86,6 +87,8 @@
         "zip"
       ],
       "category": "public.app-category.developer-tools"
-    }
-  }
+    },
+    "icon": "assets/brand/icon_app.png"
+  },
+  "desktopName": "cress.desktop"
 }

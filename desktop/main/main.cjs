@@ -16,7 +16,7 @@ function selectDirectory(input) {
   return resolved;
 }
 app.whenReady().then(() => {
-  window = new BrowserWindow({ width: 1280, height: 820, minWidth: 760, minHeight: 540, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  window = new BrowserWindow({ icon: path.join(__dirname, '../renderer/icon_app.png'), width: 1280, height: 820, minWidth: 760, minHeight: 540, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());
   ipcMain.handle('project:open', async event => {
