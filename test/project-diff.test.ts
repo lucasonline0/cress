@@ -43,3 +43,13 @@ it('does not report unchanged ambiguous routes as changes', async () => {
   expect(analysis.routes[0]?.path).toBeNull();
   expect(compareProjectAnalyses(analysis, analysis, 'HEAD').changes).toEqual([]);
 });
+
+it('reports changes in repeated global declarations as ambiguous', async () => {
+  const { analyzeProjectSources } = await import('../src/multiframework/project.js');
+  const { compareProjectAnalyses } = await import('../src/multiframework/project-diff.js');
+  const result = analyzeProjectSources('/tmp/sample', []);
+  const declaration = { application: '.', framework: 'nestjs' as const, declaration: { kind: 'APP_GUARD', scope: 'global', expression: 'Guard', source: { file: 'app.ts', line: 1 }, semantics: 'UNKNOWN' as const } };
+  const before = { ...result, globalDeclarations: [declaration, declaration] };
+  const after = { ...result, globalDeclarations: [declaration] };
+  expect(compareProjectAnalyses(before, after, 'HEAD').changes[0]?.type).toBe('UNRESOLVED_CHANGE');
+});

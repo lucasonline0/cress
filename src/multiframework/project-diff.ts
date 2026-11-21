@@ -49,6 +49,15 @@ export function compareProjectAnalyses(before: ProjectAnalysis, after: ProjectAn
   const oldGlobals = before.globalDeclarations.map(globalKey); const newGlobals = after.globalDeclarations.map(globalKey);
   for (const item of before.globalDeclarations) if (!newGlobals.includes(globalKey(item))) changes.push({ type: 'DECLARATION_REMOVED', application: item.application, framework: item.framework, method: 'GLOBAL', path: null, before: entry(item.declaration), after: null, review: 'A global declaration was removed or changed. Its runtime effect is unknown.' });
   for (const item of after.globalDeclarations) if (!oldGlobals.includes(globalKey(item))) changes.push({ type: 'DECLARATION_ADDED', application: item.application, framework: item.framework, method: 'GLOBAL', path: null, before: null, after: entry(item.declaration), review: 'A global declaration was added or changed. Its runtime effect is unknown.' });
+  for (const key of [...new Set(oldGlobals)].sort()) {
+    const oldCount = oldGlobals.filter(item => item === key).length;
+    const newCount = newGlobals.filter(item => item === key).length;
+    if (newCount > 0 && oldCount !== newCount) {
+      const left = before.globalDeclarations[oldGlobals.indexOf(key)]!;
+      const right = after.globalDeclarations[newGlobals.indexOf(key)]!;
+      changes.push({ type: 'UNRESOLVED_CHANGE', application: left.application, framework: left.framework, method: 'GLOBAL', path: null, before: entry(left.declaration), after: entry(right.declaration), review: 'Repeated global declarations changed in number; their identities and runtime effects require review.' });
+    }
+  }
   return { schemaVersion: 2, root: after.root, base, changes, warnings: [...new Set([...before.warnings.map(w => `Baseline: ${w}`), ...after.warnings.map(w => `Working tree: ${w}`), 'Route moves and unsupported constructs require manual review.'])].sort() };
 }
 export function compareProject(inputPath: string, base: string): { before: ProjectAnalysis; after: ProjectAnalysis; diff: ProjectDiff } {
