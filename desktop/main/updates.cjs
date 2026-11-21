@@ -5,8 +5,9 @@ const path = require('node:path');
 const https = require('node:https');
 const { spawn } = require('node:child_process');
 
-const MANIFEST = 'https://getcress.vercel.app/releases/linux-x86_64.txt';
+const API = 'https://api.github.com/repos/lucasonline0/cress/releases/latest';
 const RELEASES = 'https://github.com/lucasonline0/cress/releases/latest';
+const allowedHosts = new Set(['api.github.com', 'github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com']);
 
 function versionParts(value) {
   const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(value || '');
@@ -33,53 +34,72 @@ function parseManifest(text) {
   if (!/^https:\/\/github\.com\/lucasonline0\/cress\/releases\/download\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+\.AppImage$/.test(fields.url || '')) throw new Error('Untrusted update URL');
   return fields;
 }
-function getManifest(url = MANIFEST, redirects = 0) {
+function requestText(url, limit = 131072, redirects = 0) {
   return new Promise((resolve, reject) => {
-    if (redirects > 2) return reject(new Error('Too many update redirects'));
+    if (redirects > 5) return reject(new Error('Too many update redirects'));
     const target = new URL(url);
-    if (target.protocol !== 'https:' || target.hostname !== 'getcress.vercel.app') return reject(new Error('Untrusted update host'));
-    const req = https.get(target, { headers: { 'User-Agent': 'Cress-Desktop' }, timeout: 12000 }, response => {
-      if ([301, 302, 307, 308].includes(response.statusCode) && response.headers.location) {
+    if (target.protocol !== 'https:' || !allowedHosts.has(target.hostname)) return reject(new Error('Untrusted update host'));
+    const req = https.get(target, { headers: { 'User-Agent': 'Cress-Desktop', 'Accept': 'application/vnd.github+json' }, timeout: 12000 }, response => {
+      if ([301, 302, 303, 307, 308].includes(response.statusCode) && response.headers.location) {
         response.resume();
-        getManifest(new URL(response.headers.location, target).href, redirects + 1).then(resolve, reject);
+        requestText(new URL(response.headers.location, target).href, limit, redirects + 1).then(resolve, reject);
         return;
       }
       if (response.statusCode !== 200) {
-        response.resume(); reject(new Error('Update server returned HTTP ' + response.statusCode)); return;
+        response.resume(); reject(new Error('Update service returned HTTP ' + response.statusCode)); return;
       }
       let value = '';
       response.setEncoding('utf8');
       response.on('data', chunk => {
         value += chunk;
-        if (value.length > 4096) response.destroy(new Error('Update manifest too large'));
+        if (value.length > limit) response.destroy(new Error('Update response too large'));
       });
-      response.on('end', () => { try { resolve(parseManifest(value)); } catch (error) { reject(error); } });
+      response.on('end', () => resolve(value));
       response.on('error', reject);
     });
     req.on('timeout', () => req.destroy(new Error('Update check timed out')));
     req.on('error', reject);
   });
 }
-function installScript(window, mainDirectory) {
+async function latestRelease() {
+  const data = JSON.parse(await requestText(API));
+  if (!data || typeof data !== 'object' || data.draft || data.prerelease) throw new Error('No stable Cress release found');
+  const version = typeof data.tag_name === 'string' ? data.tag_name.replace(/^v/, '') : '';
+  if (!versionParts(version) || !Array.isArray(data.assets)) throw new Error('No versioned Linux release is available');
+  const name = 'Cress-' + version + '.AppImage';
+  const image = data.assets.find(item => item && item.name === name);
+  const checksum = data.assets.find(item => item && item.name === name + '.sha256');
+  if (!image || !checksum) throw new Error('The latest release has no verified Linux package');
+  const prefix = 'https://github.com/lucasonline0/cress/releases/download/';
+  if (typeof image.browser_download_url !== 'string' || typeof checksum.browser_download_url !== 'string' ||
+      !image.browser_download_url.startsWith(prefix) || !checksum.browser_download_url.startsWith(prefix) ||
+      !image.browser_download_url.endsWith('/' + name) || !checksum.browser_download_url.endsWith('/' + name + '.sha256')) {
+    throw new Error('Unexpected official release asset URLs');
+  }
+  return { version, name, url: image.browser_download_url, checksumUrl: checksum.browser_download_url };
+}
+function installScript(mainDirectory, manifestFile) {
   const file = path.join(mainDirectory, 'install.sh');
   if (!fs.statSync(file).isFile()) throw new Error('The packaged installer is unavailable');
   return new Promise((resolve, reject) => {
-    const child = spawn('/bin/bash', [file], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
-    let errorText = '';
-    let total = 0;
-    const onData = data => {
-      total += data.length;
-      if (total > 65536) { child.kill(); reject(new Error('Installer generated excessive output')); return; }
-      errorText += data.toString();
+    const child = spawn('/bin/bash', [file], {
+      stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
+      env: { ...process.env, CRESS_UPDATER_MANIFEST_FILE: manifestFile }
+    });
+    let output = '', bytes = 0;
+    const collect = data => {
+      bytes += data.length;
+      if (bytes > 65536) { child.kill(); reject(new Error('Installer generated excessive output')); return; }
+      output += data.toString();
     };
-    child.stderr.on('data', onData);
-    child.stdout.on('data', onData);
-    const timeout = setTimeout(() => child.kill('SIGTERM'), 12 * 60 * 1000);
-    child.once('error', error => { clearTimeout(timeout); reject(error); });
+    child.stderr.on('data', collect);
+    child.stdout.on('data', collect);
+    const timer = setTimeout(() => child.kill('SIGTERM'), 12 * 60 * 1000);
+    child.once('error', error => { clearTimeout(timer); reject(error); });
     child.once('close', code => {
-      clearTimeout(timeout);
+      clearTimeout(timer);
       if (code === 0) resolve();
-      else reject(new Error(errorText.trim().slice(-600) || 'The installer failed. Your existing version was preserved.'));
+      else reject(new Error(output.trim().slice(-600) || 'The installer failed. Your existing version was preserved.'));
     });
   });
 }
@@ -94,19 +114,18 @@ function createUpdater({ app, dialog, shell, getWindow, isBusy, mainDirectory })
     if (process.platform !== 'linux' || process.arch !== 'x64') {
       return { currentVersion, available: false, supported: false, message: 'Automatic updates are currently supported on Linux x86_64.' };
     }
-    const manifest = await getManifest();
+    const release = await latestRelease();
     return {
-      currentVersion,
-      latestVersion: manifest.version,
-      available: compareVersions(manifest.version, currentVersion) > 0,
+      currentVersion, latestVersion: release.version,
+      available: compareVersions(release.version, currentVersion) > 0,
       supported: app.isPackaged,
       message: app.isPackaged ? '' : 'Install a packaged Cress build to use automatic updates.'
     };
   }
   async function install() {
     if (installing || isBusy()) throw new Error('Another operation is in progress');
-    const details = await check();
     const window = getWindow();
+    const details = await check();
     if (!details.available) return { status: 'current' };
     if (!details.supported) {
       const answer = await dialog.showMessageBox(window, { type: 'info', title: 'Cress update', message: 'A new version is available', detail: 'This installation cannot be updated automatically. Open the official download page?', buttons: ['Cancel', 'Open downloads'], cancelId: 0, defaultId: 1, noLink: true });
@@ -120,16 +139,30 @@ function createUpdater({ app, dialog, shell, getWindow, isBusy, mainDirectory })
     });
     if (answer.response !== 1) return { status: 'cancelled' };
     installing = true;
+    let directory;
     try {
-      send('Downloading and verifying the update…');
-      await installScript(window, mainDirectory);
+      send('Checking the official release checksum…');
+      const release = await latestRelease();
+      if (compareVersions(release.version, app.getVersion()) <= 0) return { status: 'current' };
+      const text = (await requestText(release.checksumUrl, 2048)).trim();
+      const checksumMatch = /^([a-f0-9]{64})[ \t]+\*?([^\r\n]+)$/.exec(text);
+      if (!checksumMatch || checksumMatch[2] !== release.name) throw new Error('The official release checksum is invalid');
+      const manifest = parseManifest('status=ready\nversion=' + release.version + '\nurl=' + release.url + '\nsha256=' + checksumMatch[1] + '\n');
+      directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cress-update-'));
+      const manifestFile = path.join(directory, 'manifest.txt');
+      fs.writeFileSync(manifestFile, 'status=' + manifest.status + '\nversion=' + manifest.version + '\nurl=' + manifest.url + '\nsha256=' + manifest.sha256 + '\n', { flag: 'wx', mode: 0o600 });
+      send('Downloading and verifying Cress ' + release.version + '…');
+      await installScript(mainDirectory, manifestFile);
       const launcher = path.join(os.homedir(), '.local', 'opt', 'cress', 'cress-desktop');
       if (!fs.statSync(launcher).isFile()) throw new Error('The updated launcher was not found');
       send('Update installed. Restarting Cress…');
       app.relaunch({ execPath: launcher, args: [] });
       app.quit();
       return { status: 'restarting' };
-    } finally { installing = false; }
+    } finally {
+      installing = false;
+      if (directory) fs.rmSync(directory, { recursive: true, force: true });
+    }
   }
   return { check, install };
 }
