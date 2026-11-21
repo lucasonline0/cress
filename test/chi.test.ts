@@ -60,3 +60,8 @@ func f() {
   const result = analyzeChiSource('routes.go', source);
   expect(result.routes.map(r => [r.path, r.middleware.map(m => m.expression)])).toEqual([['/v1/items', ['parentGuard', 'childGuard']]]);
 });
+
+it('preserves a trailing slash on a route within a prefix', () => {
+  const source = 'package main\nimport "github.com/go-chi/chi/v5"\nfunc f(){r:=chi.NewRouter();r.Route("/v1",func(x chi.Router){x.Get("/",handler)})}';
+  expect(analyzeChiSource('routes.go', source).routes[0]?.path).toBe('/v1/');
+});

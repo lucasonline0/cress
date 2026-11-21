@@ -19,7 +19,11 @@ function args(call: Node): Node[] {
   return list ? list.children().filter(n => !['(', ')', ','].includes(String(n.kind()))) : [];
 }
 function location(node: Node, file: string): ChiMiddleware { return { expression: node.text(), file, line: node.range().start.line + 1 }; }
-function join(prefix: string, suffix: string): string { return '/' + `${prefix}/${suffix}`.split('/').filter(Boolean).join('/'); }
+function join(prefix: string, suffix: string): string {
+  if (!suffix) return prefix;
+  if (!prefix || prefix === '/') return suffix.startsWith('/') ? suffix : `/${suffix}`;
+  return `${prefix.endsWith('/') ? prefix.slice(0, -1) : prefix}${suffix.startsWith('/') ? suffix : `/${suffix}`}`;
+}
 
 /** Analyze direct, lexically scoped Chi registrations only. No target code is run. */
 export function analyzeChiSource(file: string, source: string): ChiResult {
