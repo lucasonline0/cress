@@ -9,7 +9,14 @@ contextBridge.exposeInMainWorld('cress', Object.freeze({
   installUpdate: () => ipcRenderer.invoke('updates:install'),
   onUpdateProgress: callback => {
     if (typeof callback !== 'function') throw new TypeError('A callback is required');
-    const listener = (_event, message) => { if (typeof message === 'string') callback(message); };
+    const listener = (_event, progress) => {
+      if (!progress || typeof progress !== 'object') return;
+      const phases = ['checking', 'downloading', 'verifying', 'installing', 'restarting'];
+      if (!phases.includes(progress.phase)) return;
+      const percent = typeof progress.percent === 'number' && Number.isFinite(progress.percent)
+        ? Math.min(100, Math.max(0, progress.percent)) : null;
+      callback({ phase: progress.phase, percent });
+    };
     ipcRenderer.on('updates:progress', listener);
     return () => ipcRenderer.removeListener('updates:progress', listener);
   },
