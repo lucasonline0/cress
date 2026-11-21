@@ -5,6 +5,7 @@ const require = createRequire(import.meta.url);
 const updates = require('../desktop/main/updates.cjs') as {
   compareVersions(a: string, b: string): number;
   parseManifest(value: string): { status: string; version: string; url: string; sha256: string };
+  downloadPercent(received: number, total: number | null): number | null;
 };
 const manifest = [
   'status=ready',
@@ -19,6 +20,14 @@ describe('desktop update integrity', () => {
     expect(updates.compareVersions('v0.3.0', '0.3.0')).toBe(0);
     expect(updates.compareVersions('0.2.0', '0.3.0')).toBe(-1);
     expect(updates.compareVersions('untrusted', '0.3.0')).toBe(0);
+  });
+  it('reports real byte progress, not fabricated percentages', () => {
+    expect(updates.downloadPercent(0, 100)).toBe(0);
+    expect(updates.downloadPercent(33, 100)).toBe(33);
+    expect(updates.downloadPercent(250, 1000)).toBe(25);
+    expect(updates.downloadPercent(100, null)).toBeNull();
+    expect(updates.downloadPercent(100, 0)).toBeNull();
+    expect(updates.downloadPercent(101, 100)).toBe(100);
   });
   it('recognizes a published release with official origin and checksum', () => {
     expect(updates.parseManifest(manifest)).toMatchObject({ version: '0.3.1', status: 'ready' });
