@@ -70,4 +70,4 @@ jobs:
           (cd release-assets && sha256sum "Cress-$version.AppImage" > "Cress-$version.AppImage.sha256")
           mapfile -d '' -t assets < <(find release-assets -maxdepth 1 -type f \( -name '*.AppImage' -o -name '*.sha256' -o -name '*.exe' -o -name '*.zip' \) -print0)
           test "${#assets[@]}" -ge 2
-          gh release create "$tag" "${assets[@]}" --target "$GITHUB_SHA" --title "Cress $version" --notes "Authorization review grouped by endpoint, expected access policies, and the cress check command for CI, with support for NestJS, Next.js and Go/Chi. Packages are unsigned; source declarations do not prove effective access."
+          gh release create "$tag" "${assets[@]}" --target "$GITHUB_SHA" --title "Cress $version" --notes "New: Access Matrix to document expected authorization by role and endpoint, Test Studio to generate editable authorization test templates, and Coverage & Drift to compare observed routes with OpenAPI. Includes existing authorization review, policies and cress check CI support for NestJS, Next.js and Go/Chi. Packages are unsigned; static observations do not prove runtime access."
