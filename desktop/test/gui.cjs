@@ -68,6 +68,15 @@ const { execFileSync } = require('node:child_process');
     await w.getByRole('button', { name: 'Export HTML' }).click();
     await w.getByText('Export saved.').waitFor();
     if (!fs.readFileSync(path.join(dir, 'report.html'), 'utf8').includes('go-chi')) throw new Error('Missing mixed report data');
+    const reportPromise = app.waitForEvent('window');
+    await app.evaluate(({ BrowserWindow }, file) => { globalThis.__cressReportTestWindow = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } }); void globalThis.__cressReportTestWindow.loadFile(file); }, path.join(dir, 'report.html'));
+    const report = await reportPromise;
+    await report.locator('[data-route]').first().waitFor();
+    await report.locator('#framework').selectOption('go-chi');
+    if (await report.locator('[data-route]:visible').count() !== 1) throw new Error('Offline framework filter did not select the Chi route');
+    await report.locator('#framework').selectOption('nextjs');
+    if (await report.locator('[data-route]:visible').count() !== 1) throw new Error('Offline framework filter did not select the Next.js route');
+    await report.close();
     console.log('NestJS, mixed Next.js/Chi exploration, Git comparison, and exports passed');
   } finally { await app.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 })().catch(e => { console.error(e); process.exit(1); });
