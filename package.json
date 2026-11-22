@@ -1,6 +1,6 @@
 {
   "name": "cress",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Local-first exploration of API authorization declarations",
   "type": "module",
   "engines": {
