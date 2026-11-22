@@ -280,3 +280,22 @@ input::placeholder { color: var(--muted); }
 .dialog-actions { justify-content: flex-end; margin-top: 18px; }
 .field-error, .danger-button { color: var(--danger); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.studio-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; }
+.studio-endpoint, .studio-settings { grid-column: 1; }
+.studio-layout .panel { margin: 0 0 10px; min-width: 0; }
+.studio-layout .field { margin-bottom: 14px; }
+.studio-layout select { width: 100%; max-width: none; }
+.studio-endpoint .field + .field { margin-top: 12px; }
+.studio-route { display: grid; gap: 4px; margin-top: 12px; overflow-wrap: anywhere; }
+.check-label { display: flex; align-items: flex-start; gap: 9px; padding: 8px 0; }
+.check-label input { flex: 0 0 auto; margin-top: 3px; }
+.check-label small { display: block; margin-top: 4px; overflow-wrap: anywhere; }
+.scenario-list { margin-bottom: 8px; }
+.fixture-fields { margin: 12px 0 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+.status-field input { max-width: 170px; }
+.studio-preview textarea { display: block; width: 100%; min-height: 240px; resize: vertical; background: var(--bg); font: 13px/1.6 ui-monospace, Consolas, monospace; tab-size: 2; }
+@media (min-width: 1120px) {
+  .studio-layout { grid-template-columns: minmax(290px, .82fr) minmax(0, 1.18fr); align-content: start; }
+  .studio-preview { grid-column: 2; grid-row: 1 / span 2; position: sticky; top: 72px; }
+}

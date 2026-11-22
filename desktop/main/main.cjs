@@ -73,11 +73,16 @@ app.whenReady().then(() => {
     if (busy) throw new Error('An operation is already running');
     busy = true; try { return await runWorker({ project: selected, ...data }); } finally { busy = false; }
   }
-  ipcMain.handle('experience:load', event => experience(event, { operation: 'loadMatrix' }));
+  function readExperience(event, data) {
+    requireSender(event);
+    if (!selected || selectDirectory(selected) !== selected) throw new Error('Select a project first');
+    return runWorker({ project: selected, ...data });
+  }
+  ipcMain.handle('experience:load', event => readExperience(event, { operation: 'loadMatrix' }));
   ipcMain.handle('experience:save', (event, matrix) => experience(event, { operation: 'saveMatrix', matrix }));
   ipcMain.handle('experience:coverage', event => experience(event, { operation: 'coverage', analysis: scanResult }));
-  ipcMain.handle('experience:detectRunner', (event, index) => { if (!Number.isSafeInteger(index) || index < 0) throw new Error('Invalid route'); return experience(event, { operation: 'detectRunner', routeIndex: index }); });
-  ipcMain.handle('experience:generate', (event, index, scenarios, runner) => { if (!Number.isSafeInteger(index) || index < 0 || !Array.isArray(scenarios) || scenarios.length > 100 || !['jest', 'vitest'].includes(runner)) throw new Error('Invalid test configuration'); return experience(event, { operation: 'generate', routeIndex: index, scenarios, runner }); });
+  ipcMain.handle('experience:detectRunner', (event, index) => { if (!Number.isSafeInteger(index) || index < 0) throw new Error('Invalid route'); return readExperience(event, { operation: 'detectRunner', analysis: scanResult, routeIndex: index }); });
+  ipcMain.handle('experience:generate', (event, index, scenarios, runner) => { if (!Number.isSafeInteger(index) || index < 0 || !Array.isArray(scenarios) || scenarios.length > 100 || !['jest', 'vitest'].includes(runner)) throw new Error('Invalid test configuration'); return experience(event, { operation: 'generate', analysis: scanResult, routeIndex: index, scenarios, runner }); });
   ipcMain.handle('experience:openapi', async event => {
     requireSender(event); if (!selected) throw new Error('Select a project first');
     const result = await dialog.showOpenDialog(window, { properties: ['openFile'], filters: [{ name: 'OpenAPI', extensions: ['json', 'yaml', 'yml'] }] });

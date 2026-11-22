@@ -6,6 +6,7 @@ import type { ProjectDiff } from '../../src/multiframework/project-diff';
 import './style.css';
 import { Icon, Modal, PageHeader, pages, type View } from './UI';
 import { Explorer, emptyFilters, type RouteFilters } from './Explorer';
+import { Studio } from './Studio';
 import { Matrix } from './Matrix';
 import { Review } from './Review';
 import { Overview } from './Overview';
@@ -156,7 +157,8 @@ function App() {
           ? <Matrix analysis={result} matrix={matrix} focusedRoute={focusedRoute} dirty={matrixDirty} saving={matrixSaving}
             update={data => { setMatrix(data); setMatrixDirty(true); setNotice(''); }} save={() => void saveMatrix()} inspectRoute={inspectRoute}/>
           : matrixFailed ? <button onClick={() => { setError(''); setMatrixFailed(false); }}>Retry loading policies</button> : <p role="status">Loading policies…</p>)}
-        {(view === 'studio' || view === 'coverage') && <Experience key={project} initialCoverageFilter={configuredCoverage ? 'With policy' : 'All routes'}
+        {view === 'studio' && <Studio key={result.root} analysis={result} focusedRoute={focusedRoute}/>}
+        {view === 'coverage' && <Experience key={project} initialCoverageFilter={configuredCoverage ? 'With policy' : 'All routes'}
           view={view} analysis={result} focusedRoute={focusedRoute} inspectRoute={inspectRoute}/>}</>}
         {switchConfirm && <Modal title="Switch projects?" close={() => setSwitchConfirm(false)}>
           <p>This project has unsaved policy changes.</p><div className="toolbar dialog-actions">
