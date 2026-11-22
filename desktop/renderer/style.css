@@ -124,7 +124,7 @@ small { color: var(--muted); font-size: 11px; }
 .panel button { font-size: 12px; }
 .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 14px; }
 input, select, textarea { min-width: 0; padding: 11px 12px; background: var(--surface); border: 1px solid var(--control); border-radius: 8px; font-size: 13px; }
-input { flex: 1 1 180px; }
+input { flex: 1 1 180px; accent-color: var(--strong); }
 select { flex: 0 1 auto; max-width: 240px; }
 input::placeholder { color: var(--muted); }
 .explorer { display: grid; grid-template-columns: minmax(310px, .85fr) minmax(330px, 1.15fr); min-height: 510px; overflow: hidden; background: var(--surface); border: 1px solid var(--border); border-radius: 11px; }
