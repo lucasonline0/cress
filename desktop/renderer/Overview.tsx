@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type { ProjectAnalysis } from '../../src/multiframework/project';
-import { Empty, Limits, Source, type View } from './UI';
+import { applicationLabel, frameworkLabel, Empty, Limits, Source, type View } from './UI';
 
 export function Overview({ analysis, navigate, exportScan }: {
   analysis: ProjectAnalysis;
@@ -44,13 +44,13 @@ export function Overview({ analysis, navigate, exportScan }: {
           const total = analysis.routes.filter(route => route.framework === app.framework && route.application === app.root).length;
           return <li key={JSON.stringify([app.framework, app.root])}><button className="data-row"
             onClick={() => navigate('routes', { framework: app.framework, application: app.root })}>
-            <strong>{app.root}</strong><span>{app.framework}</span><span>{total} {total === 1 ? 'route' : 'routes'} →</span>
+            <strong>{applicationLabel(app.root)}</strong><span>{frameworkLabel(app.framework)}</span><span>{total} {total === 1 ? 'route' : 'routes'} →</span>
           </button></li>;
         })}</ul>}
     </section>
     {analysis.globalDeclarations.length > 0 && <details className="limits"><summary>Global declarations ({analysis.globalDeclarations.length})</summary>
       <ul>{analysis.globalDeclarations.map(({ application, framework, declaration }, index) => <li key={index}>
-        <strong>{declaration.kind}</strong> · {application} · {framework}<br/>
+        <strong>{declaration.kind}</strong> · {applicationLabel(application)} · {frameworkLabel(framework)}<br/>
         <code>{declaration.expression ?? 'Unresolved expression'}</code> · <Source {...declaration.source}/>
       </li>)}</ul>
     </details>}

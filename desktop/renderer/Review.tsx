@@ -1,7 +1,7 @@
 import React, { useEffect, useState, type FormEvent } from 'react';
 import type { ProjectChange, ProjectDiff } from '../../src/multiframework/project-diff';
 import type { PolicyResult } from '../../src/multiframework/policies';
-import { Badge, Empty, Limits, Source } from './UI';
+import { applicationLabel, frameworkLabel, Badge, Empty, Limits, Source } from './UI';
 
 const changeLabels: Record<ProjectChange['type'], string> = {
   ROUTE_ADDED: 'Route added', ROUTE_REMOVED: 'Route removed',
@@ -84,7 +84,7 @@ export function Review({ diff, policies, loading, compare, exportReview, openMat
           <div className="list">{[...groups.entries()].map(([key, items]) => {
             const endpoint = items[0]!;
             return <div key={key} className="review-group"><strong>{endpoint.method} {endpoint.path ?? 'Global or unresolved'}</strong>
-              <small>{endpoint.framework} · {endpoint.application}</small>
+              <small>{frameworkLabel(endpoint.framework)} · {applicationLabel(endpoint.application)}</small>
               {items.map((change, index) => <button key={index} className={change === current ? 'route selected' : 'route'}
                 aria-pressed={change === current} onClick={() => setSelected(change)}>
                 <span>{changeLabels[change.type]}{change.declarationKind && ` · ${change.declarationKind}`}</span>
@@ -115,7 +115,7 @@ export function Review({ diff, policies, loading, compare, exportReview, openMat
           </select>
           {visiblePolicies.length ? visiblePolicies.map((policy, index) => <div className="declaration" key={index}>
             <Badge tone={policy.status === 'REVIEW_REQUIRED' ? 'attention' : 'neutral'}>{policyLabels[policy.status]}</Badge>
-            <h3>{policy.policy.method} {policy.policy.path}</h3><p>{policy.policy.framework} · {policy.reason}</p>
+            <h3>{policy.policy.method} {policy.policy.path}</h3><p>{frameworkLabel(policy.policy.framework)} · {policy.reason}</p>
             {policy.missing.length > 0 && <p>Not observed: {policy.missing.join(', ')}</p>}
             {policy.route && <Source {...policy.route}/>}
             {policy.evidence.map((declaration, index) => <p key={index}><code>{declaration.expression}</code> · <Source {...declaration.source}/></p>)}

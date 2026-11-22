@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { ProjectAnalysis, ProjectRoute } from '../../src/multiframework/project';
-import { Badge, Empty, Limits, Source, type View } from './UI';
+import { applicationLabel, frameworkLabel, Badge, Empty, Limits, Source, type View } from './UI';
 
 export interface RouteFilters { query: string; framework: string; application: string; method: string; status: string }
 export const emptyFilters: RouteFilters = { query: '', framework: '', application: '', method: '', status: '' };
@@ -48,7 +48,7 @@ export function Explorer({ analysis, initialFilters, initialRoute, handoff }: {
       {facets.map(({ key, label, all }) => <select key={key} aria-label={label} value={filters[key]}
         onChange={event => { setFilters({ ...filters, [key]: event.target.value }); setPicked(undefined); }}>
         <option value="">{all}</option>
-        {[...new Set(analysis.routes.map(route => route[key]))].sort().map(value => <option key={value}>{value}</option>)}
+        {[...new Set(analysis.routes.map(route => route[key]))].sort().map(value => <option key={value} value={value}>{key === 'framework' ? frameworkLabel(value) : key === 'application' ? applicationLabel(value) : value}</option>)}
       </select>)}
       <select aria-label="Analysis status" value={filters.status} onChange={event => setFilters({ ...filters, status: event.target.value })}>
         <option value="">All analysis states</option><option value="identity">Unresolved identity</option>
@@ -56,7 +56,12 @@ export function Explorer({ analysis, initialFilters, initialRoute, handoff }: {
       </select>
     </div>
     <div className="result-bar"><span role="status">{routes.length} of {analysis.routes.length} routes</span>
-      {active && <button onClick={() => setFilters(emptyFilters)}>Clear filters</button>}</div>
+      {active && <div className="applied-filters">
+        {facets.map(({ key }) => filters[key] && <Badge key={key}>{key === 'framework' ? frameworkLabel(filters[key]) : key === 'application' ? applicationLabel(filters[key]) : filters[key]}</Badge>)}
+        {filters.status && <Badge>{filters.status === 'identity' ? 'Unresolved identity' : states[filters.status as ProjectRoute['status']]}</Badge>}
+        {query && <Badge>Search active</Badge>}
+        <button onClick={() => setFilters(emptyFilters)}>Clear filters</button>
+      </div>}</div>
     {routes.length ? <div className="explorer route-explorer">
       <div className="list route-list" aria-label="Routes" onKeyDown={event => {
         const index = routes.findIndex(route => route === picked);
@@ -74,13 +79,13 @@ export function Explorer({ analysis, initialFilters, initialRoute, handoff }: {
           onClick={() => setPicked(route)}>
           <b>{route.method === 'UNRESOLVED' ? '—' : route.method}</b>
           <span><code title={route.path ?? undefined}>{route.path ?? 'Unresolved path'}</code>
-            <small>{route.framework} · {route.application}{route.status === 'UNRESOLVED' && ' · Unresolved'}</small></span>
+            <small>{frameworkLabel(route.framework)} · {applicationLabel(route.application)}{route.status === 'UNRESOLVED' && ' · Unresolved'}</small></span>
         </button>)}
       </div>
       <div className="details route-details">{selected ? <>
         <Badge tone={selected.status === 'DECLARED' ? 'neutral' : 'attention'}>{states[selected.status]}</Badge>
         <h2>{selected.method} <code>{selected.path ?? 'Unresolved path'}</code></h2>
-        <dl className="identity"><div><dt>Application</dt><dd>{selected.application} · {selected.framework}</dd></div>
+        <dl className="identity"><div><dt>Application</dt><dd>{applicationLabel(selected.application)} · {frameworkLabel(selected.framework)}</dd></div>
           <div><dt>Handler</dt><dd><code>{selected.handler}</code></dd></div>
           <div><dt>Source</dt><dd><Source {...selected.source}/></dd></div>
         </dl>

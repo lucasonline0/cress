@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { ProjectAnalysis, ProjectRoute } from '../../src/multiframework/project';
 import { coverageHTML, driftLabels, evidenceLabel, type Report } from './CoverageReport';
 import { RouteDeclarations } from './Explorer';
-import { Badge, Empty, Limits, Modal, Source } from './UI';
+import { applicationLabel, frameworkLabel, Badge, Empty, Limits, Modal, Source } from './UI';
 
 type Tab = 'coverage' | 'drift';
 type Entry = Report['coverage']['entries'][number];
@@ -105,7 +105,7 @@ function PolicyCoverage({ report, initialFilter, inspectRoute, openMatrix }: {
     {report.unmatchedPolicies.length > 0 && <details className="limits">
       <summary>Policies without a unique route match ({report.unmatchedPolicies.length})</summary>
       <ul>{report.unmatchedPolicies.map((item, index) => <li key={index}>
-        <strong>{item.policy.method} {item.policy.path}</strong> · {item.policy.application ?? 'All applications'} · {item.policy.framework}
+        <strong>{item.policy.method} {item.policy.path}</strong> · {item.policy.application ? applicationLabel(item.policy.application) : 'All applications'} · {frameworkLabel(item.policy.framework)}
         <p>{item.reason === 'ambiguous' ? 'Ambiguous identity' : 'Route not observed'}</p>
         {item.routes.map((route, index) => <button key={index} onClick={() => inspectRoute(route)}><Source {...route.source}/></button>)}
       </li>)}</ul>
@@ -113,9 +113,9 @@ function PolicyCoverage({ report, initialFilter, inspectRoute, openMatrix }: {
     <div className="filters">
       <input type="search" aria-label="Search coverage routes" placeholder="Search routes" value={query} onChange={event => setQuery(event.target.value)}/>
       <select aria-label="Framework filter" value={framework} onChange={event => setFramework(event.target.value)}>
-        <option value="">All frameworks</option>{[...new Set(report.entries.map(entry => entry.route.framework))].map(item => <option key={item}>{item}</option>)}</select>
+        <option value="">All frameworks</option>{[...new Set(report.entries.map(entry => entry.route.framework))].map(item => <option key={item} value={item}>{frameworkLabel(item)}</option>)}</select>
       <select aria-label="Application filter" value={application} onChange={event => setApplication(event.target.value)}>
-        <option value="">All applications</option>{[...new Set(report.entries.map(entry => entry.route.application))].map(item => <option key={item}>{item}</option>)}</select>
+        <option value="">All applications</option>{[...new Set(report.entries.map(entry => entry.route.application))].map(item => <option key={item} value={item}>{applicationLabel(item)}</option>)}</select>
       <select aria-label="Coverage status" value={active.label} onChange={event => setFilter(event.target.value)}>
         {categories.map(category => <option key={category.label}>{category.label}</option>)}</select>
     </div>
@@ -124,7 +124,7 @@ function PolicyCoverage({ report, initialFilter, inspectRoute, openMatrix }: {
       <table><thead><tr><th scope="col">Route</th><th scope="col">Policy evidence</th><th scope="col">Source</th></tr></thead>
         <tbody>{visible.map((entry, index) => <tr key={index}>
           <th scope="row"><button className="matrix-route" onClick={() => setSelected(entry)}>
-            <strong>{entry.route.method} {entry.route.path ?? 'Unresolved path'}</strong><small>{entry.route.application} · {entry.route.framework}</small>
+            <strong title={entry.route.path ?? undefined}>{entry.route.method} {entry.route.path ?? 'Unresolved path'}</strong><small>{applicationLabel(entry.route.application)} · {frameworkLabel(entry.route.framework)}</small>
           </button></th><td><Badge tone={entry.configured && entry.evidence === 'review' ? 'attention' : 'neutral'}>{evidenceLabel(entry)}</Badge></td>
           <td><Source {...entry.route.source}/></td>
         </tr>)}</tbody></table>
@@ -201,7 +201,7 @@ function OpenApi({ report, busy, importFile, openSource, inspectRoute }: {
             </> : <p>No matching operation observed.</p>}</div>
             <div><h3>Code</h3>{current.routes.length ? current.routes.map((route, index) => <div className="drift-code" key={index}>
               <button className="matrix-route" onClick={() => inspectRoute(route)}>{route.method} {route.path ?? 'Unresolved path'}</button>
-              <small>{route.application} · {route.framework}</small><p><Source {...route.source}/></p>
+              <small>{applicationLabel(route.application)} · {frameworkLabel(route.framework)}</small><p><Source {...route.source}/></p>
               <RouteDeclarations route={route}/>
             </div>) : <p>No matching route observed.</p>}
               {current.finding?.expectations?.map(item => <p key={item.profile}>{item.profile} · {item.access}</p>)}</div>

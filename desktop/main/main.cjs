@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const { Worker } = require('node:worker_threads');
 let window;
 let selected;
+let selectionVersion = 0;
 let busy = false;
 let scanResult;
 let reportResult;
@@ -30,9 +31,10 @@ app.whenReady().then(() => {
     if (busy) throw new Error('An operation is already running');
     const result = await dialog.showOpenDialog(window, { properties: ['openDirectory'] });
     if (result.canceled || !result.filePaths[0]) return null;
-    selected = selectDirectory(result.filePaths[0]); scanResult = undefined; reportResult = undefined; openApiSource = undefined; return selected;
+    if (busy) throw new Error('An operation is already running');
+    selected = selectDirectory(result.filePaths[0]); selectionVersion++; scanResult = undefined; reportResult = undefined; openApiSource = undefined; return selected;
   });
-  ipcMain.handle('project:example', event => { requireSender(event); if (busy) throw new Error('An operation is already running'); selected = selectDirectory(path.resolve(__dirname, '../../test/fixtures/nest-app/src')); scanResult = undefined; reportResult = undefined; openApiSource = undefined; return selected; });
+  ipcMain.handle('project:example', event => { requireSender(event); if (busy) throw new Error('An operation is already running'); selected = selectDirectory(path.resolve(__dirname, '../../test/fixtures/nest-app/src')); selectionVersion++; scanResult = undefined; reportResult = undefined; openApiSource = undefined; return selected; });
   ipcMain.handle('project:scan', async (event, project) => {
     requireSender(event);
     if (typeof project !== 'string' || !selected || project !== selected || selectDirectory(project) !== selected) throw new Error('Select a project first');
@@ -88,12 +90,12 @@ app.whenReady().then(() => {
   ipcMain.handle('experience:generate', (event, index, scenarios, runner) => { if (!Number.isSafeInteger(index) || index < 0 || !Array.isArray(scenarios) || scenarios.length > 100 || !['jest', 'vitest'].includes(runner)) throw new Error('Invalid test configuration'); return experience(event, { operation: 'generate', analysis: scanResult, routeIndex: index, scenarios, runner }); });
   ipcMain.handle('experience:openapi', async event => {
     requireSender(event); if (!selected) throw new Error('Select a project first');
-    const project = selected;
+    const version = selectionVersion;
     const result = await dialog.showOpenDialog(window, { properties: ['openFile'], filters: [{ name: 'OpenAPI', extensions: ['json', 'yaml', 'yml'] }] });
     if (result.canceled || !result.filePaths[0]) return null;
     const file = result.filePaths[0]; const stat = await fs.promises.stat(file); if (!stat.isFile() || stat.size > 5 * 1024 * 1024) throw new Error('Select an OpenAPI file smaller than 5 MB');
     const text = await fs.promises.readFile(file, 'utf8');
-    if (selected !== project) throw new Error('The project changed. Import the document again.');
+    if (selectionVersion !== version) throw new Error('The project changed. Import the document again.');
     const report = await experience(event, { operation: 'coverage', analysis: scanResult, openapi: text, openapiFile: file });
     openApiSource = { file, text }; return report;
   });

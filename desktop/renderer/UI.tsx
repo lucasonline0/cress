@@ -26,8 +26,17 @@ export function Icon({ name }: { name: keyof typeof iconPaths }) {
     strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={iconPaths[name]}/></svg>;
 }
 
+export function frameworkLabel(framework: string) {
+  const labels: Record<string, string> = { nestjs: 'NestJS', nextjs: 'Next.js', 'go-chi': 'Go / Chi' };
+  return labels[framework] ?? framework;
+}
+
+export function applicationLabel(application: string) {
+  return application === '.' ? 'Project root' : application;
+}
+
 export function PageHeader({ view, actions }: { view: View; actions?: ReactNode }) {
-  return <header className="page-header"><h1>{pages[view]}</h1>{actions && <div className="toolbar">{actions}</div>}</header>;
+  return <header className="page-header"><h1 tabIndex={-1}>{pages[view]}</h1>{actions && <div className="toolbar">{actions}</div>}</header>;
 }
 
 export function Empty({ title, children }: { title: string; children?: ReactNode }) {

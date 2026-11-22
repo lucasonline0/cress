@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import type { AccessMatrix, Expectation, MatrixEntry } from '../../src/multiframework/experience';
 import type { ProjectAnalysis, ProjectRoute } from '../../src/multiframework/project';
 import { RouteDeclarations } from './Explorer';
-import { Badge, Empty, Modal, Source } from './UI';
+import { applicationLabel, frameworkLabel, Badge, Empty, Modal, Source } from './UI';
 
 type Edit = { kind: 'create' } | { kind: 'rename' | 'remove'; profile: string } |
   { kind: 'condition'; route: ProjectRoute; profile: string } | { kind: 'delete'; route: ProjectRoute };
@@ -23,6 +23,7 @@ export function Matrix({ analysis, focusedRoute, matrix, dirty, saving, update, 
   const [edit, setEdit] = useState<Edit>();
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
+  const [declarationDraft, setDeclarationDraft] = useState<string>();
   const [announcement, setAnnouncement] = useState('');
   const instances = useMemo(() => {
     const counts = new Map<string, number>();
@@ -125,19 +126,19 @@ export function Matrix({ analysis, focusedRoute, matrix, dirty, saving, update, 
       <div className="filters">
         <input type="search" aria-label="Search matrix routes" placeholder="Search routes" value={search} onChange={event => setSearch(event.target.value)}/>
         <select aria-label="Matrix framework" value={framework} onChange={event => setFramework(event.target.value)}>
-          <option value="">All frameworks</option>{[...new Set(analysis.routes.map(route => route.framework))].map(item => <option key={item}>{item}</option>)}</select>
+          <option value="">All frameworks</option>{[...new Set(analysis.routes.map(route => route.framework))].map(item => <option key={item} value={item}>{frameworkLabel(item)}</option>)}</select>
         <select aria-label="Matrix application" value={application} onChange={event => setApplication(event.target.value)}>
-          <option value="">All applications</option>{[...new Set(analysis.routes.map(route => route.application))].map(item => <option key={item}>{item}</option>)}</select>
+          <option value="">All applications</option>{[...new Set(analysis.routes.map(route => route.application))].map(item => <option key={item} value={item}>{applicationLabel(item)}</option>)}</select>
       </div>
       <div className="result-bar" role="status">{routes.length} of {analysis.routes.length} routes</div>
       {routes.length ? <div className="matrix-scroll" tabIndex={0} role="region" aria-label="Access expectations by route and profile">
         <table><thead><tr><th scope="col">Route</th>{matrix.profiles.map(profile => <th scope="col" key={profile}>{profile}</th>)}</tr></thead>
           <tbody>{routes.map(route => {
             const config = entries.get(routeKey(route));
-            return <tr key={analysis.routes.indexOf(route)} className={route === selected ? 'matrix-selected' : undefined}>
-              <th scope="row"><button className="matrix-route" aria-pressed={route === selected} onClick={() => setSelected(route)}>
-                <strong>{route.method} {route.path ?? 'Unresolved path'}</strong>
-                <small>{route.application} · {route.framework}</small>
+            return <tr key={JSON.stringify([routeKey(route), route.source])} className={route === selected ? 'matrix-selected' : undefined}>
+              <th scope="row"><button className="matrix-route" aria-pressed={route === selected} onClick={() => { setSelected(route); setDeclarationDraft(undefined); }}>
+                <strong title={route.path ?? undefined}>{route.method} {route.path ?? 'Unresolved path'}</strong>
+                <small>{applicationLabel(route.application)} · {frameworkLabel(route.framework)}</small>
               </button>{!editable(route) && <Badge tone="attention">{!route.path || route.method === 'UNRESOLVED' ? 'Unresolved' : 'Ambiguous identity'}</Badge>}</th>
               {matrix.profiles.map(profile => {
                 const item = config?.expectations.find(expectation => expectation.profile === profile);
@@ -162,11 +163,12 @@ export function Matrix({ analysis, focusedRoute, matrix, dirty, saving, update, 
     </>}
     {selected && <section className="panel matrix-detail">
       <div className="matrix-toolbar"><div><h2>{selected.method} {selected.path ?? 'Unresolved path'}</h2><Source {...selected.source}/></div>
-        <button onClick={() => inspectRoute(selected)}>Open in Explorer</button></div>
+        <button disabled={saving} onClick={() => inspectRoute(selected)}>Open in Explorer</button></div>
       <label className="field">Expected declarations
-        <input key={routeKey(selected)} defaultValue={row?.requiredDeclarations.join(', ') ?? ''} disabled={saving || !editable(selected)}
+        <input value={declarationDraft ?? row?.requiredDeclarations.join(', ') ?? ''} onChange={event => setDeclarationDraft(event.target.value)} disabled={saving || !editable(selected)}
           aria-describedby="matrix-hint" onBlur={event => {
             const declarations = event.target.value.split(',').map(item => item.trim()).filter(Boolean);
+            setDeclarationDraft(undefined);
             if (JSON.stringify(declarations) !== JSON.stringify(row?.requiredDeclarations ?? [])) patch(selected, { requiredDeclarations: declarations });
           }}/>
         <small id="matrix-hint">Separate source expressions with commas. Changes apply when you leave the field.</small>

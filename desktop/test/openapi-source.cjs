@@ -12,9 +12,10 @@ const path = require('node:path');
   try {
     const w = await app.firstWindow();
     await app.evaluate(({ dialog }, target) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [target] }); }, repo);
-    await w.getByRole('button', { name: 'Open a project' }).last().click();
+    await w.getByRole('button', { name: 'Open project' }).last().click();
     await w.getByRole('button', { name: 'Rescan' }).waitFor({ timeout: 30000 });
     await w.getByRole('button', { name: 'Coverage & Drift' }).click();
+    await w.getByRole('button', { name: 'OpenAPI Drift', exact: true }).click();
     await app.evaluate(({ dialog }, target) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [target] }); }, contract);
     await w.getByRole('button', { name: 'Import OpenAPI' }).click();
     await w.getByRole('button', { name: `${contract}:4` }).click();

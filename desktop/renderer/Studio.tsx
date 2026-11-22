@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { AccessMatrix, TestRunner, TestScenario } from '../../src/multiframework/experience';
 import type { ProjectAnalysis, ProjectRoute } from '../../src/multiframework/project';
-import { Badge, Empty, Source } from './UI';
+import { applicationLabel, frameworkLabel, Badge, Empty, Source } from './UI';
 
 const fixtureFields = {
   userId: 'User ID',
@@ -45,7 +45,7 @@ export function Studio({ analysis, focusedRoute }: { analysis: ProjectAnalysis; 
       </label>
       {query && <small role="status">{routes.length} matching endpoints</small>}
       {route && <div className="studio-route"><strong>{route.method} <code>{route.path ?? 'Unresolved path'}</code></strong>
-        <small>{route.framework} · {route.application}</small><Source {...route.source}/></div>}
+        <small>{frameworkLabel(route.framework)} · {applicationLabel(route.application)}</small><Source {...route.source}/></div>}
     </section>
     {matrixError ? <div className="panel" role="alert"><p>{matrixError}</p><button onClick={() => {
       setMatrixError(''); setLoadVersion(loadVersion + 1);
@@ -56,7 +56,7 @@ export function Studio({ analysis, focusedRoute }: { analysis: ProjectAnalysis; 
 }
 
 function routeLabel(route: ProjectRoute) {
-  return `${route.method} ${route.path ?? 'Unresolved path'} · ${route.application} · ${route.framework}`;
+  return `${route.method} ${route.path ?? 'Unresolved path'} · ${applicationLabel(route.application)} · ${frameworkLabel(route.framework)}`;
 }
 
 function formatError(error: unknown) {
