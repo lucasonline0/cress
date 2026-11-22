@@ -10,13 +10,14 @@ import { Studio } from './Studio';
 import { Matrix } from './Matrix';
 import { Review } from './Review';
 import { Overview } from './Overview';
-import { Experience, type Report } from './Experience';
+import { Experience } from './Experience';
+import type { Report } from './CoverageReport';
 import type { AccessMatrix, TestScenario, TestRunner } from '../../src/multiframework/experience';
 
 interface UpdateInfo { currentVersion: string; latestVersion?: string; available: boolean; supported: boolean; message?: string }
 type UpdatePhase = 'checking' | 'downloading' | 'verifying' | 'installing' | 'restarting';
 interface UpdateProgress { phase: UpdatePhase; receivedBytes?: number; totalBytes?: number | null; percent?: number | null }
-declare global { interface Window { cress: { loadMatrix(): Promise<AccessMatrix>; saveMatrix(matrix: AccessMatrix): Promise<AccessMatrix>; coverage(): Promise<Report>; importOpenApi(): Promise<Report | null>; openApiSource(): Promise<{file: string; text: string}>; detectRunner(index: number): Promise<TestRunner[]>; generateTest(index: number, scenarios: TestScenario[], runner: TestRunner): Promise<string>; exportText(content: string, extension: 'json' | 'html' | 'go' | 'ts'): Promise<boolean>; openProject(): Promise<string | null>; scan(path: string): Promise<ProjectAnalysis>; gitRefs(): Promise<string[]>; compare(base: string): Promise<{diff: ProjectDiff; policies: PolicyResult[]}>; exportResult(kind: 'scan' | 'diff' | 'html'): Promise<boolean>; checkUpdate(): Promise<UpdateInfo>; installUpdate(): Promise<{status: string}>; onUpdateProgress(callback: (progress: UpdateProgress) => void): () => void } } }
+declare global { interface Window { cress: { loadMatrix(): Promise<AccessMatrix>; saveMatrix(matrix: AccessMatrix): Promise<AccessMatrix>; coverage(includeOpenApi?: boolean): Promise<Report>; importOpenApi(): Promise<Report | null>; openApiSource(): Promise<{file: string; text: string}>; detectRunner(index: number): Promise<TestRunner[]>; generateTest(index: number, scenarios: TestScenario[], runner: TestRunner): Promise<string>; exportText(content: string, extension: 'json' | 'html' | 'go' | 'ts'): Promise<boolean>; openProject(): Promise<string | null>; scan(path: string): Promise<ProjectAnalysis>; gitRefs(): Promise<string[]>; compare(base: string): Promise<{diff: ProjectDiff; policies: PolicyResult[]}>; exportResult(kind: 'scan' | 'diff' | 'html'): Promise<boolean>; checkUpdate(): Promise<UpdateInfo>; installUpdate(): Promise<{status: string}>; onUpdateProgress(callback: (progress: UpdateProgress) => void): () => void } } }
 function message(error: unknown) { return error instanceof Error ? error.message : String(error); }
 
 function App() {
@@ -97,8 +98,8 @@ function App() {
   async function save(kind: 'scan' | 'diff' | 'html') { setError(''); setNotice(''); try { if (await window.cress.exportResult(kind)) setNotice('Export saved.'); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } }
   async function scan(p: string) { setLoading(true); setError(''); try { const data = await window.cress.scan(p); setResult(data); setFocusedRoute(undefined); setDiff(null); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setLoading(false); } }
   async function open() { setError(''); try { const p = await window.cress.openProject(); if (p) { setMatrix(undefined); setMatrixDirty(false); setMatrixFailed(false); setNotice(''); setProject(p); setResult(null); setDiff(null); setRouteFilters(emptyFilters); setView('overview'); setPolicies([]); await scan(p); } } catch (e) { setError(e instanceof Error ? e.message : String(e)); } }
-  const [configuredCoverage, setConfiguredCoverage] = useState(false);
-  function navigate(page: View, filters: { framework?: string; application?: string; unresolved?: boolean; configured?: boolean } = {}) {
+  const [coverageStart, setCoverageStart] = useState({ configured: false, drift: false });
+  function navigate(page: View, filters: { framework?: string; application?: string; unresolved?: boolean; configured?: boolean; drift?: boolean } = {}) {
     setNotice('');
 
     if (page === 'routes') {
@@ -106,7 +107,7 @@ function App() {
       setFocusedRoute(undefined);
     }
     if (page === 'matrix' || page === 'studio') setFocusedRoute(undefined);
-    if (page === 'coverage') setConfiguredCoverage(Boolean(filters.configured));
+    if (page === 'coverage') setCoverageStart({ configured: Boolean(filters.configured), drift: Boolean(filters.drift) });
     setView(page);
   }
   function inspectRoute(route: ProjectRoute) {
@@ -158,8 +159,10 @@ function App() {
             update={data => { setMatrix(data); setMatrixDirty(true); setNotice(''); }} save={() => void saveMatrix()} inspectRoute={inspectRoute}/>
           : matrixFailed ? <button onClick={() => { setError(''); setMatrixFailed(false); }}>Retry loading policies</button> : <p role="status">Loading policies…</p>)}
         {view === 'studio' && <Studio key={result.root} analysis={result} focusedRoute={focusedRoute}/>}
-        {view === 'coverage' && <Experience key={project} initialCoverageFilter={configuredCoverage ? 'With policy' : 'All routes'}
-          view={view} analysis={result} focusedRoute={focusedRoute} inspectRoute={inspectRoute}/>}</>}
+        {view === 'coverage' && <Experience key={project} initialCoverageFilter={coverageStart.configured ? 'With policy' : 'All routes'}
+          initialTab={coverageStart.drift ? 'drift' : 'coverage'} analysis={result} inspectRoute={inspectRoute} openMatrix={route => {
+            navigate('matrix'); setFocusedRoute(route);
+          }}/>}</>}
         {switchConfirm && <Modal title="Switch projects?" close={() => setSwitchConfirm(false)}>
           <p>This project has unsaved policy changes.</p><div className="toolbar dialog-actions">
             <button autoFocus onClick={() => setSwitchConfirm(false)}>Cancel</button>

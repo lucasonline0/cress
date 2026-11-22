@@ -4,7 +4,7 @@ import { Empty, Limits, Source, type View } from './UI';
 
 export function Overview({ analysis, navigate, exportScan }: {
   analysis: ProjectAnalysis;
-  navigate: (view: View, filters?: { framework?: string; application?: string; unresolved?: boolean; configured?: boolean }) => void;
+  navigate: (view: View, filters?: { framework?: string; application?: string; unresolved?: boolean; configured?: boolean; drift?: boolean }) => void;
   exportScan: () => void;
 }) {
   const [configured, setConfigured] = useState<number>();
@@ -33,7 +33,7 @@ export function Overview({ analysis, navigate, exportScan }: {
       <button onClick={() => navigate('routes')}>Explore routes</button>
       <button onClick={() => navigate('changes')}>Review Git changes</button>
       <button onClick={() => navigate('matrix')}>Manage access policies</button>
-      <button onClick={() => navigate('coverage')}>View OpenAPI drift</button>
+      <button onClick={() => navigate('coverage', { drift: true })}>View OpenAPI drift</button>
       <button onClick={exportScan}>Export scan JSON</button>
     </div>
     <section className="panel">
