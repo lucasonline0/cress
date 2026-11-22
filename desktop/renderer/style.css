@@ -199,3 +199,15 @@ input::placeholder { color: var(--muted); }
 .matrix-scroll table { border-collapse: collapse; width: 100%; text-align: left; }
 .matrix-scroll th, .matrix-scroll td { border-bottom: 1px solid var(--border); padding: .6rem; vertical-align: top; }
 .matrix-scroll small { display: block; margin-top: .4rem; }
+
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 155px), 1fr)); gap: 1px; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--border); overflow: hidden; }
+.summary-item { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 5px; text-align: left; padding: 16px; background: var(--surface); border: 0; border-radius: 0; }
+.summary-item:focus-visible { outline-offset: -3px; }
+.summary-item span:first-child { grid-column: 1 / -1; color: var(--muted-strong); font-size: 12px; }
+.summary-item strong { font-size: 25px; font-variant-numeric: tabular-nums; }
+.summary-item span:last-child { color: var(--muted); }
+.overview-actions { margin-bottom: 24px; }
+.data-list { padding: 0; margin: 0; list-style: none; }
+.data-list > li + li { border-top: 1px solid var(--border); }
+.data-row { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) minmax(90px, .5fr) auto; gap: 10px; text-align: left; border: 0; border-radius: 0; background: transparent; overflow-wrap: anywhere; }
+.data-row span { color: var(--muted-strong); }

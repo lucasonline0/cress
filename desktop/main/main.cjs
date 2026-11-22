@@ -70,7 +70,7 @@ app.whenReady().then(() => {
   }
   ipcMain.handle('experience:load', event => experience(event, { operation: 'loadMatrix' }));
   ipcMain.handle('experience:save', (event, matrix) => experience(event, { operation: 'saveMatrix', matrix }));
-  ipcMain.handle('experience:coverage', event => experience(event, { operation: 'coverage' }));
+  ipcMain.handle('experience:coverage', event => experience(event, { operation: 'coverage', analysis: scanResult }));
   ipcMain.handle('experience:detectRunner', (event, index) => { if (!Number.isSafeInteger(index) || index < 0) throw new Error('Invalid route'); return experience(event, { operation: 'detectRunner', routeIndex: index }); });
   ipcMain.handle('experience:generate', (event, index, scenarios, runner) => { if (!Number.isSafeInteger(index) || index < 0 || !Array.isArray(scenarios) || scenarios.length > 100 || !['jest', 'vitest'].includes(runner)) throw new Error('Invalid test configuration'); return experience(event, { operation: 'generate', routeIndex: index, scenarios, runner }); });
   ipcMain.handle('experience:openapi', async event => {
@@ -79,7 +79,7 @@ app.whenReady().then(() => {
     if (result.canceled || !result.filePaths[0]) return null;
     const file = result.filePaths[0]; const stat = await fs.promises.stat(file); if (!stat.isFile() || stat.size > 5 * 1024 * 1024) throw new Error('Select an OpenAPI file smaller than 5 MB');
     const text = await fs.promises.readFile(file, 'utf8');
-    const report = await experience(event, { operation: 'coverage', openapi: text, openapiFile: file });
+    const report = await experience(event, { operation: 'coverage', analysis: scanResult, openapi: text, openapiFile: file });
     openApiSource = { file, text }; return report;
   });
   ipcMain.handle('experience:source', event => { requireSender(event); if (!selected || !openApiSource) throw new Error('Import an OpenAPI document first'); return openApiSource; });
