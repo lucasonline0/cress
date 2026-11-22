@@ -1,24 +1,76 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { ProjectAnalysis, ProjectRoute } from '../../src/multiframework/project';
 import type { PolicyResult } from '../../src/multiframework/policies';
-import type { ProjectDiff, ProjectChange } from '../../src/multiframework/project-diff';
+import type { ProjectDiff } from '../../src/multiframework/project-diff';
 import './style.css';
-import { Experience, type Report } from './Experience';
+import { Icon, Modal, PageHeader, pages, type View } from './UI';
+import { Explorer, emptyFilters, type RouteFilters } from './Explorer';
+import { Studio } from './Studio';
+import { Matrix } from './Matrix';
+import { Review } from './Review';
+import { Overview } from './Overview';
+import { Experience } from './Experience';
+import type { Report } from './CoverageReport';
 import type { AccessMatrix, TestScenario, TestRunner } from '../../src/multiframework/experience';
 
 interface UpdateInfo { currentVersion: string; latestVersion?: string; available: boolean; supported: boolean; message?: string }
 type UpdatePhase = 'checking' | 'downloading' | 'verifying' | 'installing' | 'restarting';
 interface UpdateProgress { phase: UpdatePhase; receivedBytes?: number; totalBytes?: number | null; percent?: number | null }
-declare global { interface Window { cress: { loadMatrix(): Promise<AccessMatrix>; saveMatrix(matrix: AccessMatrix): Promise<AccessMatrix>; coverage(): Promise<Report>; importOpenApi(): Promise<Report | null>; openApiSource(): Promise<{file: string; text: string}>; detectRunner(index: number): Promise<TestRunner[]>; generateTest(index: number, scenarios: TestScenario[], runner: TestRunner): Promise<string>; exportText(content: string, extension: 'json' | 'html' | 'go' | 'ts'): Promise<boolean>; openProject(): Promise<string | null>; scan(path: string): Promise<ProjectAnalysis>; compare(base: string): Promise<{diff: ProjectDiff; policies: PolicyResult[]}>; exportResult(kind: 'scan' | 'diff' | 'html'): Promise<boolean>; checkUpdate(): Promise<UpdateInfo>; installUpdate(): Promise<{status: string}>; onUpdateProgress(callback: (progress: UpdateProgress) => void): () => void } } }
+declare global {
+  interface Window {
+    cress: {
+      openProject(): Promise<string | null>;
+      scan(path: string): Promise<ProjectAnalysis>;
+      gitRefs(): Promise<string[]>;
+      compare(base: string): Promise<{ diff: ProjectDiff; policies: PolicyResult[] }>;
+      exportResult(kind: 'scan' | 'diff' | 'html'): Promise<boolean>;
+      loadMatrix(): Promise<AccessMatrix>;
+      saveMatrix(matrix: AccessMatrix): Promise<AccessMatrix>;
+      detectRunner(index: number): Promise<TestRunner[]>;
+      generateTest(index: number, scenarios: TestScenario[], runner: TestRunner): Promise<string>;
+      coverage(includeOpenApi?: boolean): Promise<Report>;
+      importOpenApi(): Promise<Report | null>;
+      openApiSource(): Promise<{ file: string; text: string }>;
+      exportText(content: string, extension: 'json' | 'html' | 'go' | 'ts'): Promise<boolean>;
+      checkUpdate(): Promise<UpdateInfo>;
+      installUpdate(): Promise<{ status: string }>;
+      onUpdateProgress(callback: (progress: UpdateProgress) => void): () => void;
+    };
+  }
+}
+
+function message(error: unknown) { return error instanceof Error ? error.message : String(error); }
+
 function App() {
-  const [project, setProject] = useState(''); const [result, setResult] = useState<ProjectAnalysis | null>(null);
-  const [loading, setLoading] = useState(false); const [error, setError] = useState(''); const [query, setQuery] = useState('');
-  const [method, setMethod] = useState('ALL'); const [status, setStatus] = useState('ALL'); const [selected, setSelected] = useState<ProjectRoute | null>(null);
-  const [framework, setFramework] = useState('ALL'); const [application, setApplication] = useState('ALL');
-  const [view, setView] = useState<'overview' | 'routes' | 'changes' | 'matrix' | 'studio' | 'coverage'>('changes');
-  const [base, setBase] = useState('HEAD'); const [diff, setDiff] = useState<ProjectDiff | null>(null); const [change, setChange] = useState<ProjectChange | null>(null); const [changeType, setChangeType] = useState('ALL'); const [notice, setNotice] = useState('');
-  const [policies, setPolicies] = useState<PolicyResult[]>([]); const [policyFilter, setPolicyFilter] = useState('ALL');
+  const [project, setProject] = useState('');
+  const [result, setResult] = useState<ProjectAnalysis | null>(null);
+  const [scanVersion, setScanVersion] = useState(0);
+  const [scanning, setScanning] = useState(false);
+  const [comparing, setComparing] = useState(false);
+  const [opening, setOpening] = useState(false);
+  const [error, setError] = useState('');
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [routeFilters, setRouteFilters] = useState<RouteFilters>(emptyFilters);
+  const [focusedRoute, setFocusedRoute] = useState<ProjectRoute>();
+  const [view, setView] = useState<View>('overview');
+  const [collapsed, setCollapsed] = useState(false);
+  const [compact, setCompact] = useState(() => window.matchMedia('(max-width: 860px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 860px)');
+    const resize = () => { setCompact(media.matches); setCollapsed(false); };
+    media.addEventListener('change', resize);
+    return () => media.removeEventListener('change', resize);
+  }, []);
+  useEffect(() => {
+    if (!result) return;
+    const heading = contentRef.current?.querySelector('h1');
+    heading?.focus({ preventScroll: true });
+    contentRef.current?.parentElement?.scrollTo(0, 0);
+  }, [view, result]);
+  const [diff, setDiff] = useState<ProjectDiff | null>(null);
+  const [notice, setNotice] = useState('');
+  const [policies, setPolicies] = useState<PolicyResult[]>([]);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [updateWorking, setUpdateWorking] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<UpdateProgress | null>(null);
@@ -43,19 +95,179 @@ function App() {
     try {
       await window.cress.installUpdate();
     } catch (error) {
-      // A failed update check may happen before the main process opens its error dialog.
-      window.alert(error instanceof Error ? error.message : String(error));
+      setError(message(error));
     } finally {
       setUpdateProgress(null);
       setUpdateWorking(false);
     }
   }
-  async function compare() { setLoading(true); setError(''); setDiff(null); setChange(null); try { const review = await window.cress.compare(base); setDiff(review.diff); setPolicies(review.policies); setChange(null); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setLoading(false); } }
-  async function save(kind: 'scan' | 'diff' | 'html') { setError(''); setNotice(''); try { if (await window.cress.exportResult(kind)) setNotice('Export saved.'); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } }
-  async function scan(p: string) { setLoading(true); setError(''); try { const data = await window.cress.scan(p); setResult(data); setSelected(null); setDiff(null); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setLoading(false); } }
-  async function open() { setError(''); try { const p = await window.cress.openProject(); if (p) { setProject(p); setResult(null); setDiff(null); setQuery(''); setFramework('ALL'); setApplication('ALL'); setMethod('ALL'); setStatus('ALL'); setChangeType('ALL'); setView('changes'); setPolicies([]); await scan(p); } } catch (e) { setError(e instanceof Error ? e.message : String(e)); } }
-  const routes = result?.routes.filter(r => (framework === 'ALL' || r.framework === framework) && (application === 'ALL' || r.application === application) && (method === 'ALL' || r.method === method) && (status === 'ALL' || r.status === status) && `${r.method} ${r.path} ${r.framework} ${r.application} ${r.handler}`.toLowerCase().includes(query.toLowerCase())) ?? [];
-  return <div className="app"><aside><div className="brand"><img src="./cress-black.png" alt="Cress mascot"/><b>cress.</b></div>{project && <nav><button className={view === 'overview' ? 'active' : ''} onClick={() => { setQuery(''); setView('overview'); }}>Overview</button><button className={view === 'routes' ? 'active' : ''} onClick={() => { setQuery(''); setView('routes'); }}>Access explorer</button><button className={view === 'changes' ? 'active' : ''} onClick={() => { setQuery(''); setView('changes'); }}>Authorization review</button><button className={view === 'matrix' ? 'active' : ''} onClick={() => setView('matrix')}>Access Matrix</button><button className={view === 'studio' ? 'active' : ''} onClick={() => setView('studio')}>Test Studio</button><button className={view === 'coverage' ? 'active' : ''} onClick={() => setView('coverage')}>Coverage &amp; Drift</button></nav>}<div className="aside-bottom"><button onClick={() => void open()} disabled={loading}>Open a project</button><p>Local analysis. Your code stays on your device.</p></div></aside><main><div className="topbar"><div className="topbar-title"><span className="topbar-mark" aria-hidden="true"></span><span>Cress Desktop</span><span className="topbar-subtitle">/ Access review</span></div><div className="topbar-actions"><span className="local-indicator">Local analysis</span><UpdateIndicator info={updateInfo} progress={updateProgress} working={updateWorking} onClick={() => void handleUpdate()}/></div></div><div className="main-content">{!project ? <div className="welcome"><img src="./cress-black.png" alt="Cress mascot"/><h1>Understand access<br/>at the source.</h1><p>Explore authorization declarations in your project, locally.</p><div className="actions"><button className="primary" onClick={() => void open()}>Open a project</button></div></div> : <><header><div><div className="eyebrow">PROJECT</div><h1>{project.split(/[\\/]/).filter(Boolean).pop()}</h1><p className="path">{project}</p></div><button onClick={() => void scan(project)} disabled={loading}>{loading ? 'Scanning…' : 'Rescan'}</button></header>{loading && <p role="status">Scanning project…</p>}{view === 'overview' && result && <><div className="metrics"><div><strong>{result.routes.length}</strong><span>Routes</span></div><div><strong>{result.routes.reduce((n, r) => n + r.declarations.length, 0) + result.globalDeclarations.length}</strong><span>Observed declarations</span></div><div><strong>{result.routes.filter(r => r.status === 'UNRESOLVED').length}</strong><span>Unresolved routes</span></div></div><section><h2>Analysis overview</h2><p>{result.scannedFiles} files considered · {result.applications.length} applications detected</p><h3>Detected applications</h3>{result.applications.length ? result.applications.map(a => <p key={`${a.framework}:${a.root}`}>{a.framework} ({a.root}) · {result.routes.filter(r => r.framework === a.framework && r.application === a.root).length} {result.routes.filter(r => r.framework === a.framework && r.application === a.root).length === 1 ? 'route' : 'routes'}</p>) : <p>No supported framework detected.</p>}<p>Declarations are source observations. Effective access requires review.</p><button onClick={() => { setQuery(''); setView('routes'); }}>Explore routes →</button> <button onClick={() => void save('scan')}>Export scan JSON</button></section><Warnings items={result.warnings}/><section><h2>Global declarations</h2>{result.globalDeclarations.length ? result.globalDeclarations.map((d, i) => <p key={i}>{d.framework} · {d.application} · {d.declaration.kind}: {d.declaration.expression} <small>{d.declaration.source.file}:{d.declaration.source.line}</small></p>) : <p>No global declarations observed.</p>}</section></>}{view === 'routes' && result && <><div className="filters"><input aria-label="Search routes" placeholder="Search routes" value={query} onChange={e => { setQuery(e.target.value); setSelected(null); setChange(null); }}/><select aria-label="Framework" value={framework} onChange={e => { setFramework(e.target.value); setSelected(null); }}><option value="ALL">All frameworks</option>{[...new Set(result.routes.map(r => r.framework))].sort().map(f => <option key={f}>{f}</option>)}</select><select aria-label="Application" value={application} onChange={e => { setApplication(e.target.value); setSelected(null); }}><option value="ALL">All applications</option>{[...new Set(result.routes.map(r => r.application))].sort().map(a => <option key={a}>{a}</option>)}</select><select aria-label="HTTP method" value={method} onChange={e => { setMethod(e.target.value); setSelected(null); }}><option value="ALL">All methods</option>{[...new Set(result.routes.map(r => r.method))].sort().map(m => <option key={m}>{m}</option>)}</select><select aria-label="Analysis status" value={status} onChange={e => { setStatus(e.target.value); setSelected(null); }}><option value="ALL">All statuses</option><option>DECLARED</option><option>UNRESOLVED</option><option>REQUIRES_REVIEW</option></select></div><div className="explorer"><div className="list">{routes.length ? routes.map((r, i) => <button className={selected === r ? 'route selected' : 'route'} key={i} onClick={() => setSelected(r)}><b>{r.method}</b><span>{r.path ?? 'Unresolved path'}</span><small>{r.status}</small></button>) : <p>No routes match your filters.</p>}</div><div className="details">{selected ? <><div className="eyebrow">{selected.status}</div><h2>{selected.method} {selected.path ?? 'Unresolved path'}</h2><p>{selected.framework} · {selected.application} · {selected.handler}</p><p className="path">{selected.source.file}:{selected.source.line}</p><h3>Authorization declarations</h3>{selected.declarations.length ? selected.declarations.map((d, i) => <div className="declaration" key={i}><b>{d.kind}</b> <small>{d.scope} · {d.semantics}</small><p>{d.expression ?? 'Unresolved expression'}</p><small>{d.source.file}:{d.source.line}</small></div>) : <p>No local declarations observed. Effective access is unknown.</p>}<Warnings items={selected.warnings}/></> : <p>Select a route to inspect its declarations.</p>}</div></div></>}</>}{view === 'changes' && <><section><h2>Authorization review</h2><p>Compare source declarations with a local Git reference. Effective access remains unknown.</p><div className="filters"><input aria-label="Git baseline" value={base} onChange={e => setBase(e.target.value)} placeholder="Branch, tag or commit"/><button onClick={() => void compare()} disabled={loading}>Compare</button></div></section>{diff && <><section><h2>Expected access policies</h2><p>Missing observations do not establish that protection is absent.</p><select aria-label="Policy status" value={policyFilter} onChange={e => setPolicyFilter(e.target.value)}><option value="ALL">All policies</option><option>PASS</option><option>REVIEW_REQUIRED</option><option>UNKNOWN</option></select>{policies.length ? policies.filter(p => policyFilter === 'ALL' || p.status === policyFilter).map((p, i) => <div className="declaration" key={i}><b>{p.status} · {p.policy.method} {p.policy.path}</b><p>{p.policy.framework} · {p.reason}</p>{p.missing.length > 0 && <p>Not observed: {p.missing.join(', ')}</p>}{p.route && <small>Route: {p.route.file}:{p.route.line} </small>}{p.evidence.map((d, n) => <p key={n}>{d.expression} <small>{d.source.file}:{d.source.line}</small></p>)}</div>) : <p>No policies configured. Add a .cress.json file to the project.</p>}</section><Warnings items={diff.warnings}/><div className="filters"><input aria-label="Search changes" placeholder="Search changes" value={query} onChange={e => { setQuery(e.target.value); setSelected(null); setChange(null); }}/><select aria-label="Change type" value={changeType} onChange={e => { setChangeType(e.target.value); setChange(null); }}><option value="ALL">All changes</option>{[...new Set(diff.changes.map(c => c.type))].sort().map(t => <option key={t}>{t}</option>)}</select><button onClick={() => void save('diff')}>Export JSON</button><button onClick={() => void save('html')}>Export HTML</button></div><div className="explorer"><div className="list">{(() => { const filtered = diff.changes.filter(c => (changeType === 'ALL' || c.type === changeType) && `${c.type} ${c.framework} ${c.application} ${c.method} ${c.path} ${c.declarationKind ?? ''}`.toLowerCase().includes(query.toLowerCase())); const groups = new Map<string, ProjectChange[]>(); for (const c of filtered) { const key = JSON.stringify([c.framework, c.application, c.method, c.path]); groups.set(key, [...(groups.get(key) ?? []), c]); } return groups.size ? [...groups.entries()].map(([key, items]) => <section key={key}><b>{items[0]!.framework} · {items[0]!.application} · {items[0]!.method} {items[0]!.path ?? 'Global / unresolved'}</b>{items.map((c, i) => <button className={change === c ? 'route selected' : 'route'} key={i} onClick={() => setChange(c)}><span>{c.type} {c.declarationKind && `· ${c.declarationKind}`}</span></button>)}</section>) : <p>No changes match your filters.</p>; })()}</div><div className="details">{change ? <><h2>{change.type}</h2><p>{change.framework} · {change.application} · {change.method} {change.path}</p><p>{change.review}</p>{change.affectedRoutes && <section><h3>Potentially affected routes</h3>{change.affectedRoutes.length ? change.affectedRoutes.map((r, i) => <p key={i}>{r.method} {r.path ?? 'Unresolved'} <small>{r.source.file}:{r.source.line}</small></p>) : <p>No routes observed in this application.</p>}</section>}{(['before', 'after'] as const).map(side => <section key={side}><h3>{side === 'before' ? 'Before' : 'After'}</h3><p>{change[side]?.expression ?? 'No corresponding declaration'}</p>{change[side] && <small>{change[side]?.source.file}:{change[side]?.source.line}</small>}</section>)}</> : <p>Select a change to inspect its source.</p>}</div></div></>}</>}{result && (view === 'matrix' || view === 'studio' || view === 'coverage') && <Experience view={view} analysis={result} inspectRoute={r => { setFramework(r.framework); setApplication(r.application); setMethod('ALL'); setStatus('ALL'); setQuery(''); setSelected(result.routes.find(x => x.source.file === r.source.file && x.source.line === r.source.line && x.method === r.method) ?? null); setView('routes'); }}/>} {notice && <p role="status">{notice}</p>}{error && <div role="alert" className="error">{error}</div>}</div></main></div>;
+  const [matrix, setMatrix] = useState<AccessMatrix>();
+  const [matrixDirty, setMatrixDirty] = useState(false);
+  const [matrixSaving, setMatrixSaving] = useState(false);
+  const [matrixFailed, setMatrixFailed] = useState(false);
+  const [switchConfirm, setSwitchConfirm] = useState(false);
+  useEffect(() => {
+    if (!result || scanning || view !== 'matrix' || matrix || matrixFailed) return;
+    let active = true;
+    void window.cress.loadMatrix().then(data => { if (active) setMatrix(data); }).catch(error => {
+      if (active) { setError(message(error)); setMatrixFailed(true); }
+    });
+    return () => { active = false; };
+  }, [result, scanning, view, matrix, matrixFailed]);
+
+  async function saveMatrix() {
+    if (!matrix || matrixSaving) return;
+    setMatrixSaving(true);
+    setError('');
+    try {
+      setMatrix(await window.cress.saveMatrix(matrix));
+      setMatrixDirty(false);
+      setDiff(null);
+      setNotice('Policies saved to .cress.json.');
+    } catch (error) { setError(message(error)); }
+    finally { setMatrixSaving(false); }
+  }
+
+  async function compare(base: string) {
+    setComparing(true);
+    setError('');
+    setNotice('');
+    setDiff(null);
+    try {
+      const review = await window.cress.compare(base);
+      setDiff(review.diff);
+      setPolicies(review.policies);
+    } catch (error) { setError(message(error)); }
+    finally { setComparing(false); }
+  }
+
+  async function save(kind: 'scan' | 'diff' | 'html') {
+    setError('');
+    setNotice('');
+    try { if (await window.cress.exportResult(kind)) setNotice('Export saved.'); }
+    catch (error) { setError(message(error)); }
+  }
+
+  async function scan(path: string) {
+    setScanning(true);
+    setError('');
+    setNotice('');
+    try {
+      setResult(await window.cress.scan(path));
+      setScanVersion(version => version + 1);
+      setFocusedRoute(undefined);
+      setRouteFilters(emptyFilters);
+      setDiff(null);
+      if (!matrixDirty || path !== project) setMatrix(undefined);
+      setMatrixFailed(false);
+    } catch (error) { setError(message(error)); }
+    finally { setScanning(false); }
+  }
+
+  async function open() {
+    setOpening(true);
+    setError('');
+    try {
+      const path = await window.cress.openProject();
+      if (!path) return;
+      setMatrix(undefined);
+      setMatrixDirty(false);
+      setMatrixFailed(false);
+      setProject(path);
+      setResult(null);
+      setDiff(null);
+      setPolicies([]);
+      setView('overview');
+      await scan(path);
+    } catch (error) { setError(message(error)); }
+    finally { setOpening(false); }
+  }
+
+  const [coverageStart, setCoverageStart] = useState({ configured: false, drift: false });
+  function navigate(page: View, filters: { framework?: string; application?: string; unresolved?: boolean; configured?: boolean; drift?: boolean } = {}) {
+    if (page === view) return;
+    setNotice('');
+    setError('');
+    if (page === 'routes') {
+      setRouteFilters({ ...emptyFilters, framework: filters.framework ?? '', application: filters.application ?? '', status: filters.unresolved ? 'identity' : '' });
+      setFocusedRoute(undefined);
+    }
+    if (page === 'matrix' || page === 'studio') setFocusedRoute(undefined);
+    if (page === 'coverage') setCoverageStart({ configured: Boolean(filters.configured), drift: Boolean(filters.drift) });
+    setView(page);
+    if (compact) setCollapsed(false);
+  }
+  function inspectRoute(route: ProjectRoute) {
+    setError('');
+    setNotice('');
+    setRouteFilters(emptyFilters);
+    setFocusedRoute(result?.routes.find(candidate => candidate.source.file === route.source.file &&
+      candidate.source.line === route.source.line && candidate.method === route.method &&
+      candidate.application === route.application && candidate.path === route.path));
+    setView('routes');
+  }
+  const rail = compact !== collapsed;
+  const busy = opening || scanning || comparing || matrixSaving;
+  return <div className="app">
+    {project && <aside className={rail ? 'sidebar rail' : 'sidebar'}>
+      <div className="brand"><img src="./cress-black.png" alt=""/><b>cress.</b></div>
+      {result && <nav id="workspace-nav" aria-label="Workspace">
+        {(Object.keys(pages) as View[]).map(page => <button key={page} title={pages[page]} aria-label={pages[page]}
+          disabled={busy} aria-current={view === page ? 'page' : undefined} onClick={() => navigate(page)}>
+          <Icon name={page}/><span>{pages[page]}</span>
+        </button>)}
+      </nav>}
+    </aside>}
+    <main>
+      <div className="topbar">
+        <div className="topbar-title">
+          {project && <button className="icon-button" aria-label={rail ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!rail} aria-controls={result ? 'workspace-nav' : undefined}
+            title={rail ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => setCollapsed(!collapsed)}><Icon name="sidebar"/></button>}
+          {project ? <><button className="project-button" title={`Switch project · ${project}`} aria-label="Switch project" disabled={busy}
+            onClick={() => matrixDirty ? setSwitchConfirm(true) : void open()}><Icon name="folder"/><span>{project.split(/[\\/]/).filter(Boolean).pop() ?? project}</span></button>
+            <span aria-hidden="true" className="breadcrumb-divider">/</span><span>{pages[view]}</span></> : <span>Welcome</span>}
+        </div>
+        <div className="topbar-actions">
+          {project && <button onClick={() => void scan(project)} disabled={busy}>Rescan</button>}
+          <UpdateIndicator info={updateInfo} progress={updateProgress} working={updateWorking} onClick={() => void handleUpdate()}/>
+        </div>
+      </div>
+      <div className="main-content" ref={contentRef}>
+        {!project && <div className="welcome"><img src="./cress-black.png" alt=""/>
+          <h1>Explore authorization in your code</h1>
+          <p>Open a project folder to inspect routes and access declarations on this device.</p>
+          <div className="actions"><button className="primary" disabled={opening} onClick={() => void open()}>Open project</button></div>
+        </div>}
+        {project && !result && !scanning && error && <button className="primary" onClick={() => void scan(project)}>Retry scan</button>}
+        {scanning && <p className="feedback" role="status">Scanning project…</p>}
+        {error && <p role="alert" className="feedback error">{error}</p>}
+        {notice && <p role="status" className="feedback success">{notice}</p>}
+        {result && <div inert={scanning}>
+          <PageHeader view={view}/>
+          {view === 'overview' && <Overview key={scanVersion} analysis={result} navigate={navigate} exportScan={() => void save('scan')}/>}
+          {view === 'routes' && <Explorer key={scanVersion} analysis={result} initialFilters={routeFilters} initialRoute={focusedRoute}
+            handoff={(page, route) => { setFocusedRoute(route); setView(page); }}/>}
+          {view === 'changes' && <Review diff={diff} policies={policies} loading={comparing || matrixSaving}
+            compare={compare} exportReview={kind => void save(kind)} openMatrix={() => navigate('matrix')}/>}
+          {view === 'matrix' && (matrix
+            ? <Matrix key={scanVersion} analysis={result} matrix={matrix} focusedRoute={focusedRoute} dirty={matrixDirty} saving={matrixSaving}
+              update={data => { setMatrix(data); setMatrixDirty(true); setNotice(''); }} save={() => void saveMatrix()} inspectRoute={inspectRoute}/>
+            : matrixFailed ? <button onClick={() => { setError(''); setMatrixFailed(false); }}>Retry loading policies</button>
+              : <p role="status">Loading policies…</p>)}
+          {view === 'studio' && <Studio key={scanVersion} analysis={result} focusedRoute={focusedRoute}/>}
+          {view === 'coverage' && <Experience key={scanVersion} initialCoverageFilter={coverageStart.configured ? 'With policy' : 'All routes'}
+            initialTab={coverageStart.drift ? 'drift' : 'coverage'} analysis={result} inspectRoute={inspectRoute} openMatrix={route => {
+              navigate('matrix'); setFocusedRoute(route);
+            }}/>}
+        </div>}
+        {switchConfirm && <Modal title="Switch projects?" close={() => setSwitchConfirm(false)}>
+          <p>This project has unsaved policy changes.</p><div className="toolbar dialog-actions">
+            <button autoFocus onClick={() => setSwitchConfirm(false)}>Cancel</button>
+            <button className="danger-button" onClick={() => { setSwitchConfirm(false); void open(); }}>Discard and switch</button>
+          </div></Modal>}
+      </div>
+    </main>
+  </div>;
 }
 function UpdateIndicator({ info, progress, working, onClick }: { info: UpdateInfo | null; progress: UpdateProgress | null; working: boolean; onClick: () => void }) {
   if (progress && working) {
@@ -81,5 +293,4 @@ function UpdateIndicator({ info, progress, working, onClick }: { info: UpdateInf
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M4 18v2h16v-2"/></svg>
   </button>;
 }
-function Warnings({items}: {items: string[]}) { return items.length > 0 ? <section><h2>Warnings</h2>{items.map((w, i) => <p key={i}>{w}</p>)}</section> : null; }
 createRoot(document.getElementById('root')!).render(<App/>);

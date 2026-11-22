@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const { Worker } = require('node:worker_threads');
 let window;
 let selected;
+let selectionVersion = 0;
 let busy = false;
 let scanResult;
 let reportResult;
@@ -30,15 +31,21 @@ app.whenReady().then(() => {
     if (busy) throw new Error('An operation is already running');
     const result = await dialog.showOpenDialog(window, { properties: ['openDirectory'] });
     if (result.canceled || !result.filePaths[0]) return null;
-    selected = selectDirectory(result.filePaths[0]); scanResult = undefined; reportResult = undefined; openApiSource = undefined; return selected;
+    if (busy) throw new Error('An operation is already running');
+    selected = selectDirectory(result.filePaths[0]); selectionVersion++; scanResult = undefined; reportResult = undefined; openApiSource = undefined; return selected;
   });
-  ipcMain.handle('project:example', event => { requireSender(event); if (busy) throw new Error('An operation is already running'); selected = selectDirectory(path.resolve(__dirname, '../../test/fixtures/nest-app/src')); scanResult = undefined; reportResult = undefined; openApiSource = undefined; return selected; });
+  ipcMain.handle('project:example', event => { requireSender(event); if (busy) throw new Error('An operation is already running'); selected = selectDirectory(path.resolve(__dirname, '../../test/fixtures/nest-app/src')); selectionVersion++; scanResult = undefined; reportResult = undefined; openApiSource = undefined; return selected; });
   ipcMain.handle('project:scan', async (event, project) => {
     requireSender(event);
     if (typeof project !== 'string' || !selected || project !== selected || selectDirectory(project) !== selected) throw new Error('Select a project first');
     if (busy) throw new Error('A scan is already running');
     busy = true;
     try { scanResult = await runWorker({ project: selected }); reportResult = undefined; return scanResult; } finally { busy = false; }
+  });
+  ipcMain.handle('project:gitRefs', event => {
+    requireSender(event);
+    if (!selected || selectDirectory(selected) !== selected) return [];
+    return runWorker({ project: selected, operation: 'gitRefs' });
   });
   ipcMain.handle('project:compare', async (event, base) => {
     requireSender(event);
@@ -68,18 +75,28 @@ app.whenReady().then(() => {
     if (busy) throw new Error('An operation is already running');
     busy = true; try { return await runWorker({ project: selected, ...data }); } finally { busy = false; }
   }
-  ipcMain.handle('experience:load', event => experience(event, { operation: 'loadMatrix' }));
+  function readExperience(event, data) {
+    requireSender(event);
+    if (!selected || selectDirectory(selected) !== selected) throw new Error('Select a project first');
+    return runWorker({ project: selected, ...data });
+  }
+  ipcMain.handle('experience:load', event => readExperience(event, { operation: 'loadMatrix' }));
   ipcMain.handle('experience:save', (event, matrix) => experience(event, { operation: 'saveMatrix', matrix }));
-  ipcMain.handle('experience:coverage', event => experience(event, { operation: 'coverage' }));
-  ipcMain.handle('experience:detectRunner', (event, index) => { if (!Number.isSafeInteger(index) || index < 0) throw new Error('Invalid route'); return experience(event, { operation: 'detectRunner', routeIndex: index }); });
-  ipcMain.handle('experience:generate', (event, index, scenarios, runner) => { if (!Number.isSafeInteger(index) || index < 0 || !Array.isArray(scenarios) || scenarios.length > 100 || !['jest', 'vitest'].includes(runner)) throw new Error('Invalid test configuration'); return experience(event, { operation: 'generate', routeIndex: index, scenarios, runner }); });
+  ipcMain.handle('experience:coverage', (event, includeOpenApi) => {
+    const source = includeOpenApi === true ? openApiSource : undefined;
+    return readExperience(event, { operation: 'coverage', analysis: scanResult, openapi: source?.text, openapiFile: source?.file });
+  });
+  ipcMain.handle('experience:detectRunner', (event, index) => { if (!Number.isSafeInteger(index) || index < 0) throw new Error('Invalid route'); return readExperience(event, { operation: 'detectRunner', analysis: scanResult, routeIndex: index }); });
+  ipcMain.handle('experience:generate', (event, index, scenarios, runner) => { if (!Number.isSafeInteger(index) || index < 0 || !Array.isArray(scenarios) || scenarios.length > 100 || !['jest', 'vitest'].includes(runner)) throw new Error('Invalid test configuration'); return experience(event, { operation: 'generate', analysis: scanResult, routeIndex: index, scenarios, runner }); });
   ipcMain.handle('experience:openapi', async event => {
     requireSender(event); if (!selected) throw new Error('Select a project first');
+    const version = selectionVersion;
     const result = await dialog.showOpenDialog(window, { properties: ['openFile'], filters: [{ name: 'OpenAPI', extensions: ['json', 'yaml', 'yml'] }] });
     if (result.canceled || !result.filePaths[0]) return null;
     const file = result.filePaths[0]; const stat = await fs.promises.stat(file); if (!stat.isFile() || stat.size > 5 * 1024 * 1024) throw new Error('Select an OpenAPI file smaller than 5 MB');
     const text = await fs.promises.readFile(file, 'utf8');
-    const report = await experience(event, { operation: 'coverage', openapi: text, openapiFile: file });
+    if (selectionVersion !== version) throw new Error('The project changed. Import the document again.');
+    const report = await experience(event, { operation: 'coverage', analysis: scanResult, openapi: text, openapiFile: file });
     openApiSource = { file, text }; return report;
   });
   ipcMain.handle('experience:source', event => { requireSender(event); if (!selected || !openApiSource) throw new Error('Import an OpenAPI document first'); return openApiSource; });
