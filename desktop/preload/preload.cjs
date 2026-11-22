@@ -3,6 +3,7 @@ contextBridge.exposeInMainWorld('cress', Object.freeze({
   openProject: () => ipcRenderer.invoke('project:open'),
   example: () => ipcRenderer.invoke('project:example'),
   scan: project => ipcRenderer.invoke('project:scan', project),
+  gitRefs: () => ipcRenderer.invoke('project:gitRefs'),
   compare: base => ipcRenderer.invoke('project:compare', base),
   exportResult: kind => ipcRenderer.invoke('project:export', kind),
   loadMatrix: () => ipcRenderer.invoke('experience:load'),

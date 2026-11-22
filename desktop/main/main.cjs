@@ -40,6 +40,11 @@ app.whenReady().then(() => {
     busy = true;
     try { scanResult = await runWorker({ project: selected }); reportResult = undefined; return scanResult; } finally { busy = false; }
   });
+  ipcMain.handle('project:gitRefs', event => {
+    requireSender(event);
+    if (!selected || selectDirectory(selected) !== selected) return [];
+    return runWorker({ project: selected, operation: 'gitRefs' });
+  });
   ipcMain.handle('project:compare', async (event, base) => {
     requireSender(event);
     if (!selected || selectDirectory(selected) !== selected) throw new Error('Select a project first');
