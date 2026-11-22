@@ -13,7 +13,7 @@ import { loadMatrix } from './multiframework/matrix-store.js';
 import { readFileSync } from 'node:fs';
 import { createProjectReport } from './multiframework/report.js';
 const program = new Command();
-program.name('cress').description('Inventory supported API authorization declarations locally.').version('0.5.0');
+program.name('cress').description('Inventory supported API authorization declarations locally.').version('0.6.0');
 program.command('scan').description('Scan a directory for supported API declarations.')
   .argument('<path>', 'directory to scan')
   .option('--format <format>', 'output format: terminal or json', 'terminal')
