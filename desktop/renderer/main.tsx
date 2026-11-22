@@ -4,8 +4,9 @@ import type { ProjectAnalysis, ProjectRoute } from '../../src/multiframework/pro
 import type { PolicyResult } from '../../src/multiframework/policies';
 import type { ProjectDiff } from '../../src/multiframework/project-diff';
 import './style.css';
-import { Icon, PageHeader, pages, type View } from './UI';
+import { Icon, Modal, PageHeader, pages, type View } from './UI';
 import { Explorer, emptyFilters, type RouteFilters } from './Explorer';
+import { Matrix } from './Matrix';
 import { Review } from './Review';
 import { Overview } from './Overview';
 import { Experience, type Report } from './Experience';
@@ -15,6 +16,8 @@ interface UpdateInfo { currentVersion: string; latestVersion?: string; available
 type UpdatePhase = 'checking' | 'downloading' | 'verifying' | 'installing' | 'restarting';
 interface UpdateProgress { phase: UpdatePhase; receivedBytes?: number; totalBytes?: number | null; percent?: number | null }
 declare global { interface Window { cress: { loadMatrix(): Promise<AccessMatrix>; saveMatrix(matrix: AccessMatrix): Promise<AccessMatrix>; coverage(): Promise<Report>; importOpenApi(): Promise<Report | null>; openApiSource(): Promise<{file: string; text: string}>; detectRunner(index: number): Promise<TestRunner[]>; generateTest(index: number, scenarios: TestScenario[], runner: TestRunner): Promise<string>; exportText(content: string, extension: 'json' | 'html' | 'go' | 'ts'): Promise<boolean>; openProject(): Promise<string | null>; scan(path: string): Promise<ProjectAnalysis>; gitRefs(): Promise<string[]>; compare(base: string): Promise<{diff: ProjectDiff; policies: PolicyResult[]}>; exportResult(kind: 'scan' | 'diff' | 'html'): Promise<boolean>; checkUpdate(): Promise<UpdateInfo>; installUpdate(): Promise<{status: string}>; onUpdateProgress(callback: (progress: UpdateProgress) => void): () => void } } }
+function message(error: unknown) { return error instanceof Error ? error.message : String(error); }
+
 function App() {
   const [project, setProject] = useState(''); const [result, setResult] = useState<ProjectAnalysis | null>(null);
   const [loading, setLoading] = useState(false); const [error, setError] = useState('');
@@ -63,10 +66,36 @@ function App() {
       setUpdateWorking(false);
     }
   }
+  const [matrix, setMatrix] = useState<AccessMatrix>();
+  const [matrixDirty, setMatrixDirty] = useState(false);
+  const [matrixSaving, setMatrixSaving] = useState(false);
+  const [matrixFailed, setMatrixFailed] = useState(false);
+  const [switchConfirm, setSwitchConfirm] = useState(false);
+  useEffect(() => {
+    if (!result || view !== 'matrix' || matrix || matrixFailed) return;
+    let active = true;
+    void window.cress.loadMatrix().then(data => { if (active) setMatrix(data); }).catch(error => {
+      if (active) { setError(message(error)); setMatrixFailed(true); }
+    });
+    return () => { active = false; };
+  }, [result, view, matrix, matrixFailed]);
+
+  async function saveMatrix() {
+    if (!matrix || matrixSaving) return;
+    setMatrixSaving(true);
+    setError('');
+    try {
+      setMatrix(await window.cress.saveMatrix(matrix));
+      setMatrixDirty(false);
+      setNotice('Policies saved to .cress.json.');
+    } catch (error) { setError(message(error)); }
+    finally { setMatrixSaving(false); }
+  }
+
   async function compare(base: string) { setLoading(true); setError(''); setNotice(''); setDiff(null); try { const review = await window.cress.compare(base); setDiff(review.diff); setPolicies(review.policies); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setLoading(false); } }
   async function save(kind: 'scan' | 'diff' | 'html') { setError(''); setNotice(''); try { if (await window.cress.exportResult(kind)) setNotice('Export saved.'); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } }
   async function scan(p: string) { setLoading(true); setError(''); try { const data = await window.cress.scan(p); setResult(data); setFocusedRoute(undefined); setDiff(null); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setLoading(false); } }
-  async function open() { setError(''); try { const p = await window.cress.openProject(); if (p) { setProject(p); setResult(null); setDiff(null); setRouteFilters(emptyFilters); setView('overview'); setPolicies([]); await scan(p); } } catch (e) { setError(e instanceof Error ? e.message : String(e)); } }
+  async function open() { setError(''); try { const p = await window.cress.openProject(); if (p) { setMatrix(undefined); setMatrixDirty(false); setMatrixFailed(false); setNotice(''); setProject(p); setResult(null); setDiff(null); setRouteFilters(emptyFilters); setView('overview'); setPolicies([]); await scan(p); } } catch (e) { setError(e instanceof Error ? e.message : String(e)); } }
   const [configuredCoverage, setConfiguredCoverage] = useState(false);
   function navigate(page: View, filters: { framework?: string; application?: string; unresolved?: boolean; configured?: boolean } = {}) {
     setNotice('');
@@ -78,6 +107,13 @@ function App() {
     if (page === 'matrix' || page === 'studio') setFocusedRoute(undefined);
     if (page === 'coverage') setConfiguredCoverage(Boolean(filters.configured));
     setView(page);
+  }
+  function inspectRoute(route: ProjectRoute) {
+    setRouteFilters(emptyFilters);
+    setFocusedRoute(result?.routes.find(candidate => candidate.source.file === route.source.file &&
+      candidate.source.line === route.source.line && candidate.method === route.method &&
+      candidate.application === route.application && candidate.path === route.path));
+    setView('routes');
   }
   const rail = compact !== collapsed;
   return <div className="app">
@@ -95,12 +131,12 @@ function App() {
         <div className="topbar-title">
           <button className="icon-button" aria-label={rail ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!rail}
             title={rail ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => setCollapsed(!collapsed)}><Icon name="sidebar"/></button>
-          {project ? <><button className="project-button" title={project} aria-label="Switch project" disabled={loading}
-            onClick={() => void open()}><Icon name="folder"/><span>{project.split(/[\\/]/).filter(Boolean).pop() ?? project}</span></button>
+          {project ? <><button className="project-button" title={project} aria-label="Switch project" disabled={loading || matrixSaving}
+            onClick={() => matrixDirty ? setSwitchConfirm(true) : void open()}><Icon name="folder"/><span>{project.split(/[\\/]/).filter(Boolean).pop() ?? project}</span></button>
             <span aria-hidden="true" className="breadcrumb-divider">/</span><span>{pages[view]}</span></> : <span>Welcome</span>}
         </div>
         <div className="topbar-actions">
-          {project && <button onClick={() => void scan(project)} disabled={loading}>Rescan</button>}
+          {project && <button onClick={() => void scan(project)} disabled={loading || matrixSaving}>Rescan</button>}
           <UpdateIndicator info={updateInfo} progress={updateProgress} working={updateWorking} onClick={() => void handleUpdate()}/>
         </div>
       </div>
@@ -116,14 +152,17 @@ function App() {
           handoff={(page, route) => { setFocusedRoute(route); setView(page); }}/>}
         {view === 'changes' && <Review diff={diff} policies={policies} loading={loading} compare={compare}
           exportReview={kind => void save(kind)} openMatrix={() => navigate('matrix')}/>}
-        {result && (view === 'matrix' || view === 'studio' || view === 'coverage') && <Experience key={project} initialCoverageFilter={configuredCoverage ? 'With policy' : 'All routes'}
-          view={view} analysis={result} focusedRoute={focusedRoute} inspectRoute={route => {
-            setRouteFilters(emptyFilters);
-            setFocusedRoute(result.routes.find(candidate => candidate.source.file === route.source.file &&
-              candidate.source.line === route.source.line && candidate.method === route.method &&
-              candidate.application === route.application && candidate.path === route.path));
-            setView('routes');
-          }}/>}</>}
+        {view === 'matrix' && (matrix
+          ? <Matrix analysis={result} matrix={matrix} focusedRoute={focusedRoute} dirty={matrixDirty} saving={matrixSaving}
+            update={data => { setMatrix(data); setMatrixDirty(true); setNotice(''); }} save={() => void saveMatrix()} inspectRoute={inspectRoute}/>
+          : matrixFailed ? <button onClick={() => { setError(''); setMatrixFailed(false); }}>Retry loading policies</button> : <p role="status">Loading policies…</p>)}
+        {(view === 'studio' || view === 'coverage') && <Experience key={project} initialCoverageFilter={configuredCoverage ? 'With policy' : 'All routes'}
+          view={view} analysis={result} focusedRoute={focusedRoute} inspectRoute={inspectRoute}/>}</>}
+        {switchConfirm && <Modal title="Switch projects?" close={() => setSwitchConfirm(false)}>
+          <p>This project has unsaved policy changes.</p><div className="toolbar dialog-actions">
+            <button autoFocus onClick={() => setSwitchConfirm(false)}>Cancel</button>
+            <button className="danger-button" onClick={() => { setSwitchConfirm(false); void open(); }}>Discard and switch</button>
+          </div></Modal>}
         {notice && <p role="status">{notice}</p>}{error && <div role="alert" className="error">{error}</div>}</div></main></div>;
 }
 function UpdateIndicator({ info, progress, working, onClick }: { info: UpdateInfo | null; progress: UpdateProgress | null; working: boolean; onClick: () => void }) {

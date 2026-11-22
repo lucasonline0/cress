@@ -48,3 +48,16 @@ export function Limits({ items }: { items: string[] }) {
     <ul>{distinct.map(item => <li key={item}>{item}</li>)}</ul>
   </details>;
 }
+
+export function Modal({ title, close, children }: { title: string; close: () => void; children: ReactNode }) {
+  const ref = React.useRef<HTMLDialogElement>(null);
+  const label = React.useId();
+  React.useEffect(() => {
+    const dialog = ref.current;
+    dialog?.showModal();
+    return () => dialog?.close();
+  }, []);
+  return <dialog ref={ref} className="dialog" aria-labelledby={label} onCancel={event => { event.preventDefault(); close(); }}>
+    <h2 id={label}>{title}</h2>{children}
+  </dialog>;
+}
